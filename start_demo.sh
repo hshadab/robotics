@@ -134,6 +134,16 @@ wait_for_service() {
     echo -e " ${GREEN}✓${NC}"
 }
 
+# Check if camera is already publishing
+echo -e "${BLUE}Checking for existing camera...${NC}"
+if source /opt/ros/${ROS_DISTRO:-jazzy}/setup.bash 2>/dev/null && source install/setup.bash 2>/dev/null && ros2 topic list 2>/dev/null | grep -q "^/image$"; then
+    echo -e "${GREEN}✓${NC} Camera already publishing to /image"
+    CAMERA_EXISTS=true
+else
+    echo -e "${YELLOW}⚠${NC} No camera detected on /image topic"
+    CAMERA_EXISTS=false
+fi
+
 # Start UI server (this auto-starts verifier and proxies)
 echo -e "${BLUE}Starting UI server...${NC}"
 cd tools/robotics-ui
@@ -150,6 +160,12 @@ wait_for_service "http://localhost:9100/health" "ONNX verifier" || exit 1
 
 # Start all services via the UI API
 echo -e "\n${BLUE}Starting demo components...${NC}"
+
+# If camera exists, skip burger mode (use real camera)
+if [ "$CAMERA_EXISTS" = "true" ]; then
+    echo -e "${BLUE}Using existing camera feed${NC}"
+    BURGER="false"
+fi
 
 # Build query parameters
 QUERY="mode=$MODE"
