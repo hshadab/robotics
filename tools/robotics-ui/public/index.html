@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JOLT zkML Robotics Demo</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" />
+  <style>
+    :root {
+      --bg: #0f1115; --panel: #141722; --accent: #5c7cfa; --text: #e5e7eb; --muted: #9aa3b2; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif}
+    header{padding:20px 24px;border-bottom:1px solid #1d2231;background:linear-gradient(180deg,#141722,#12141d)}
+    .title{font-weight:600;font-size:18px}
+    .tagline{color:var(--muted);font-size:13px;margin-top:6px}
+    main{max-width:1100px;margin:24px auto;padding:0 16px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+    .card{background:var(--panel);border:1px solid #1d2231;border-radius:12px;padding:16px}
+    h2{margin:0 0 10px 0;font-size:16px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    button{background:var(--accent);color:white;border:none;padding:10px 14px;border-radius:8px;cursor:pointer;font-weight:600}
+    button.secondary{background:#1f2536;color:var(--text)}
+    button.ok{background:var(--ok)}
+    button.warn{background:var(--warn)}
+    label{font-size:13px;color:var(--muted)}
+    select,input[type=checkbox]{margin-left:6px}
+    .status-dot{width:10px;height:10px;border-radius:50%}
+    .grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .muted{color:var(--muted)}
+    .pill{display:inline-block;border:1px solid #2a3246;border-radius:999px;padding:4px 10px;font-size:12px;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">JOLT Atlas zkML — Robotics Demo</div>
+    <div class="tagline">Proof‑gated STOP with twist_mux; ONNX + JOLT proofs; HTTP or CLI backend</div>
+  </header>
+  <main>
+    <div class="grid">
+      <div class="card">
+        <h2>Quick Start</h2>
+        <div class="row" style="margin-bottom:8px">
+          <label><input id="proofOn" type="checkbox" checked /> Proof On</label>
+          <label><input id="burger" type="checkbox" checked /> Burger Mode</label>
+          <label>Verifier Mode
+            <select id="mode">
+              <option value="http" selected>http</option>
+              <option value="cli">cli</option>
+            </select>
+          </label>
+          <label><input id="record" type="checkbox" /> Record MCAP</label>
+        </div>
+        <div class="row">
+          <button id="btnFull">Start Full Demo</button>
+          <a id="linkFull" class="secondary" href="/start/full?mode=http&burger=1&record=0" style="text-decoration:none;padding:10px 14px;border-radius:8px;border:1px solid #2a3246;display:inline-block">Start (defaults)</a>
+          <button class="secondary" id="btnStopAll">Stop All</button>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <span class="pill">Verifier: <span id="s_verifier" class="muted">—</span></span>
+          <span class="pill">Camera: <span id="s_camera" class="muted">—</span></span>
+          <span class="pill">Guard: <span id="s_guard" class="muted">—</span></span>
+          <span class="pill">Teleop: <span id="s_teleop" class="muted">—</span></span>
+          <span class="pill">MCAP: <span id="s_bag" class="muted">—</span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Individual Controls</h2>
+        <div class="grid-3">
+          <button id="startVerifier">Start Verifier</button>
+          <button class="secondary" id="stopVerifier">Stop Verifier</button>
+          <span></span>
+          <button id="startCam">Start Camera</button>
+          <button class="secondary" id="stopCam">Stop Camera</button>
+          <span></span>
+          <button id="startGuard">Start Guard</button>
+          <button class="secondary" id="stopGuard">Stop Guard</button>
+          <span></span>
+          <button id="startTele">Start Teleop Demo</button>
+          <button class="secondary" id="stopTele">Stop Teleop</button>
+          <span></span>
+          <button id="startBag">Start MCAP</button>
+          <button class="secondary" id="stopBag">Stop MCAP</button>
+          <span></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Status</h2>
+        <div class="row" style="gap:16px;align-items:center">
+          <div>
+            <div style="font-weight:600">Proof</div>
+            <div id="proofBadge" class="pill" style="border-color:#2a3246;color:#9aa3b2">unknown</div>
+          </div>
+          <div>
+            <div style="font-weight:600">Lock (/zkml/stop)</div>
+            <div id="lockBadge" class="pill" style="border-color:#2a3246;color:#9aa3b2">unknown</div>
+          </div>
+          <div>
+            <div style="font-weight:600">Latest Frame</div>
+            <img id="latestFrame" src="" alt="frame" style="width:160px;height:auto;border-radius:8px;border:1px solid #1d2231;background:#0e1320"/>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="grid-column: 1 / -1;">
+        <h2>Live Events (/zkml/event)</h2>
+        <div id="events" style="max-height:240px; overflow:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; line-height:1.4; background:#0e1320; border:1px solid #1d2231; border-radius:8px; padding:8px;"></div>
+      </div>
+    </div>
+  </main>
+  <script>
+    const api = (p, opts={}) => fetch(p, Object.assign({headers:{'Content-Type':'application/json'}}, opts));
+    const get = p => api(p);
+    const post = (p, body) => api(p, {method:'POST', body: JSON.stringify(body||{})});
+
+    const q = id => document.getElementById(id);
+    const setStatus = (id, on) => q(id).textContent = on ? 'on' : 'off';
+
+    async function refresh() {
+      try {
+        const s = await (await get('/status')).json();
+        setStatus('s_verifier', s.verifier);
+        setStatus('s_camera', s.camera);
+        setStatus('s_guard', s.guard);
+        setStatus('s_teleop', s.teleop);
+        setStatus('s_bag', s.bag);
+        // Update snapshot and lock badges
+        try {
+          const rs = await (await get('/api/stop_state')).json();
+          const lb = q('lockBadge');
+          if (rs.stop === true) { lb.textContent = 'locked (stop=true)'; lb.style.color = '#f59e0b'; lb.style.borderColor = '#f59e0b'; }
+          else if (rs.stop === false) { lb.textContent = 'unlocked (stop=false)'; lb.style.color = '#22c55e'; lb.style.borderColor = '#22c55e'; }
+          else { lb.textContent = 'unknown'; lb.style.color = '#9aa3b2'; lb.style.borderColor = '#2a3246'; }
+        } catch {}
+        try {
+          q('latestFrame').src = '/api/frame.png?ts=' + Date.now();
+        } catch {}
+      } catch {}
+    }
+
+    async function startFull() {
+      const proofOn = q('proofOn').checked;
+      const burger = q('burger').checked;
+      const mode = q('mode').value;
+      const record = q('record').checked;
+      if (proofOn && mode === 'http') await post('/start/verifier');
+      await post('/start/camera', { burger });
+      await post('/start/guard', { mode });
+      await post('/start/teleop');
+      if (record) await post('/start/bag');
+      setTimeout(refresh, 600);
+    }
+
+    q('btnFull').onclick = async () => {
+      const proofOn = q('proofOn').checked;
+      const burger = q('burger').checked;
+      const mode = q('mode').value;
+      const record = q('record').checked;
+      if (proofOn) {
+        try {
+          const qs = `mode=${encodeURIComponent(mode)}&burger=${burger?1:0}&record=${record?1:0}`;
+          await fetch(`/start/full?${qs}`);
+        } catch (e) {}
+      } else {
+        // No-proof path: just camera, guard(no-proof), teleop
+        try {
+          await post('/start/camera', { burger });
+          await post('/start/guard', { mode: 'http' }); // guard still starts; will keep lock engaged without proofs
+          await post('/start/teleop');
+        } catch (e) {}
+      }
+      refresh();
+      // ensure events stream/polling attached
+      if (!window._evtAttached) { attachSSE(); window._evtAttached = true; }
+    };
+    q('btnStopAll').onclick = async () => {
+      try { await fetch('/stop/all'); } catch (e) {}
+      refresh();
+    };
+
+    q('startVerifier').onclick = () => post('/start/verifier').then(refresh);
+    q('stopVerifier').onclick = () => post('/stop/verifier').then(refresh);
+    q('startCam').onclick = () => post('/start/camera', { burger: q('burger').checked }).then(refresh);
+    q('stopCam').onclick = () => post('/stop/camera').then(refresh);
+    q('startGuard').onclick = () => post('/start/guard', { mode: q('mode').value }).then(refresh);
+    q('stopGuard').onclick = () => post('/stop/guard').then(refresh);
+    q('startTele').onclick = () => post('/start/teleop').then(refresh);
+    q('stopTele').onclick = () => post('/stop/teleop').then(refresh);
+    q('startBag').onclick = () => post('/start/bag').then(refresh);
+    q('stopBag').onclick = () => post('/stop/bag').then(refresh);
+
+    function attachSSE(){
+      try {
+        const es = new EventSource('/api/events');
+        es.addEventListener('zkml', (e) => {
+          try {
+            const obj = JSON.parse(e.data);
+            const line = `[${new Date().toLocaleTimeString()}] ${JSON.stringify(obj)}`;
+            const box = q('events');
+            const div = document.createElement('div');
+            div.textContent = line;
+            box.appendChild(div);
+            // Keep last ~200 lines
+            if (box.childElementCount > 200) box.removeChild(box.firstChild);
+            box.scrollTop = box.scrollHeight;
+            // Update proof badge
+            const pb = q('proofBadge');
+            if (obj && obj.proof_verified === true) { pb.textContent = 'PROOF VERIFIED'; pb.style.color = '#22c55e'; pb.style.borderColor = '#22c55e'; }
+            else if (obj && obj.predicate_met === false) { pb.textContent = 'predicate not met'; pb.style.color = '#9aa3b2'; pb.style.borderColor = '#2a3246'; }
+            else { pb.textContent = 'no proof'; pb.style.color = '#f59e0b'; pb.style.borderColor = '#f59e0b'; }
+          } catch {}
+        });
+        es.onerror = () => {
+          clearInterval(window._evtPoll);
+          window._evtPoll = setInterval(async () => {
+            try {
+              const r = await fetch('/api/last_event');
+              if (r.status === 200) {
+                const obj = await r.json();
+                const line = `[${new Date().toLocaleTimeString()}] ${JSON.stringify(obj)}`;
+                const box = q('events');
+                const div = document.createElement('div');
+                div.textContent = line;
+                box.appendChild(div);
+                if (box.childElementCount > 200) box.removeChild(box.firstChild);
+                box.scrollTop = box.scrollHeight;
+                const pb = q('proofBadge');
+                if (obj && obj.proof_verified === true) { pb.textContent = 'PROOF VERIFIED'; pb.style.color = '#22c55e'; pb.style.borderColor = '#22c55e'; }
+                else if (obj && obj.predicate_met === false) { pb.textContent = 'predicate not met'; pb.style.color = '#9aa3b2'; pb.style.borderColor = '#2a3246'; }
+                else { pb.textContent = 'no proof'; pb.style.color = '#f59e0b'; pb.style.borderColor = '#f59e0b'; }
+              }
+            } catch {}
+          }, 1000);
+        };
+      } catch {
+        window._evtPoll = setInterval(async () => {
+          try {
+            const r = await fetch('/api/last_event');
+            if (r.status === 200) {
+              const obj = await r.json();
+              const line = `[${new Date().toLocaleTimeString()}] ${JSON.stringify(obj)}`;
+              const box = q('events');
+              const div = document.createElement('div');
+              div.textContent = line;
+              box.appendChild(div);
+              if (box.childElementCount > 200) box.removeChild(box.firstChild);
+              box.scrollTop = box.scrollHeight;
+            }
+          } catch {}
+        }, 1000);
+      }
+    }
+
+    window.addEventListener('load', async () => {
+      attachSSE();
+      window._evtAttached = true;
+      refresh();
+      setInterval(refresh, 3000);
+    });
+  </script>
+</body>
+</html>

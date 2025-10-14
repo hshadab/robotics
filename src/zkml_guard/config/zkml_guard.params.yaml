@@ -1,0 +1,24 @@
+zkml_guard:
+  ros__parameters:
+    # Gating defaults tuned for JOLT Atlas
+    gating_mode: argmax
+    threshold: 0.6
+    require_proof: true
+
+    # Proof cadence optimizations
+    prove_on: rising_edge         # or: every_pass
+    unlock_hold_ms: 1200          # keep unlocked briefly after a verify
+    reprove_on_label_change: true # cancel hold if top-1 changes
+
+    # ONNX + labels auto-download cache
+    # Leave commented to auto-download MobileNetV2 from ONNX Model Zoo
+    # model_path: "~/.cache/zkml_guard/models/mobilenetv2-7.onnx"
+    # labels_path: "~/.cache/zkml_guard/imagenet_classes.txt"
+
+    # Use external HTTP verifier by default (your /onnx-verifier service)
+    verifier_mode: http
+    verifier_url: "http://localhost:9100/verify"
+
+    # JOLT Atlas CLI template — CHANGE THIS to your binary + flags
+    # Placeholders: {model} {input} {label} {threshold} {output}
+    prove_cmd_template: "atlas_argmax_prover --model {model} --input_npy {input} --assert-argmax {label} --verify --json"

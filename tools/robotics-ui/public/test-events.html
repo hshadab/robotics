@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Test: Live Events</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; background: #0f1115; color: #e5e7eb; margin: 0; padding: 16px; }
+    .card { background: #141722; border: 1px solid #1d2231; border-radius: 12px; padding: 16px; max-width: 800px; }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .pill { display:inline-block; border:1px solid #2a3246; border-radius:999px; padding:4px 10px; font-size:12px; color:#9aa3b2 }
+    pre { background:#0e1320; border:1px solid #1d2231; border-radius:8px; padding:8px; max-height:360px; overflow:auto }
+    button { background:#5c7cfa; color:#fff; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:600 }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Test: Live Events (/api/last_event)</h2>
+    <div class="row" style="margin-bottom:8px">
+      <button id="btnStart">Start Demo</button>
+      <span class="pill">HTTP: <span id="code">—</span></span>
+      <span class="pill">Time: <span id="ts">—</span></span>
+    </div>
+    <pre id="out">(waiting…)</pre>
+  </div>
+
+  <script>
+    const out = document.getElementById('out');
+    const code = document.getElementById('code');
+    const ts = document.getElementById('ts');
+    async function poll(){
+      try {
+        const r = await fetch('/api/last_event', { cache: 'no-store' });
+        code.textContent = r.status;
+        ts.textContent = new Date().toLocaleTimeString();
+        if (r.status === 200) {
+          const j = await r.json();
+          out.textContent = JSON.stringify(j, null, 2);
+        } else {
+          out.textContent = '(no content)';
+        }
+      } catch(e) {
+        code.textContent = 'error';
+      }
+    }
+    setInterval(poll, 1000);
+    document.getElementById('btnStart').onclick = async () => {
+      try { await fetch('/start/full?mode=http&burger=1&record=0'); } catch(e) {}
+    };
+  </script>
+</body>
+</html>
+

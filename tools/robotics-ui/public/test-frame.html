@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Test: Latest Frame</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; background: #0f1115; color: #e5e7eb; margin: 0; padding: 16px; }
+    .card { background: #141722; border: 1px solid #1d2231; border-radius: 12px; padding: 16px; max-width: 640px; }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .pill { display:inline-block; border:1px solid #2a3246; border-radius:999px; padding:4px 10px; font-size:12px; color:#9aa3b2 }
+    img { border: 1px solid #1d2231; border-radius: 8px; max-width: 600px; height: auto; background: #0e1320; }
+    button { background:#5c7cfa; color:#fff; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:600 }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Test: Latest Frame (/api/frame.png)</h2>
+    <div class="row" style="margin-bottom:8px">
+      <button id="btnStart">Start Demo</button>
+      <span class="pill">Status: <span id="st">idle</span></span>
+      <span class="pill">HTTP: <span id="code">—</span></span>
+      <span class="pill">Size: <span id="size">—</span></span>
+      <span class="pill">Time: <span id="ts">—</span></span>
+    </div>
+    <img id="frame" alt="latest frame" />
+  </div>
+
+  <script>
+    const img = document.getElementById('frame');
+    const st = document.getElementById('st');
+    const code = document.getElementById('code');
+    const size = document.getElementById('size');
+    const ts = document.getElementById('ts');
+
+    async function pull() {
+      try {
+        const url = '/api/frame.png?ts=' + Date.now();
+        const r = await fetch(url, { cache: 'no-store' });
+        code.textContent = r.status;
+        ts.textContent = new Date().toLocaleTimeString();
+        if (!r.ok || r.status !== 200) {
+          size.textContent = '—';
+          return;
+        }
+        const blob = await r.blob();
+        size.textContent = (blob.size/1024).toFixed(1) + ' KB';
+        const objUrl = URL.createObjectURL(blob);
+        img.src = objUrl;
+      } catch (e) {
+        code.textContent = 'error';
+      }
+    }
+
+    setInterval(pull, 1000);
+
+    document.getElementById('btnStart').onclick = async () => {
+      st.textContent = 'starting…';
+      try {
+        await fetch('/start/full?mode=http&burger=1&record=0');
+        st.textContent = 'started';
+      } catch(e) {
+        st.textContent = 'error';
+      }
+    };
+  </script>
+</body>
+</html>
+

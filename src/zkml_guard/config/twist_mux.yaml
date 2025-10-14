@@ -1,0 +1,13 @@
+twist_mux:
+  ros__parameters:
+    use_stamped: false
+    topics:
+      teleop:
+        topic: /cmd_vel
+        timeout: 0.5
+        priority: 50
+    locks:
+      zkml_stop:
+        topic: /zkml/stop
+        timeout: 0.0
+        priority: 255

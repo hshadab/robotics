@@ -1,0 +1,63 @@
+# ROS build artifacts
+build/
+install/
+log/
+*.egg-info/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+.npm
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temp files
+*.tmp
+*.bak
+*.cache
+/tmp/
+
+# MCAP recordings
+*.mcap
+
+# Model cache
+.cache/
+models/*.onnx
+!models/.gitkeep
+
+# Logs
+*.log
+
+# Rust/Cargo
+target/
+Cargo.lock
+
+# PID files (runtime)
+*.pid
+
+# Upload directories
+uploads/
+
+# Temporary demo files
+/tmp/rdemo-*

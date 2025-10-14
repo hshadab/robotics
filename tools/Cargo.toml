@@ -1,0 +1,13 @@
+[workspace]
+members = [
+  "atlas_argmax_prover",
+  "jolt-atlas/onnx-tracer",
+  "jolt-atlas/zkml-jolt-core",
+]
+resolver = "2"
+
+[patch.crates-io]
+ark-ff = { git = "https://github.com/a16z/arkworks-algebra", branch = "dev/twist-shout" }
+ark-ec = { git = "https://github.com/a16z/arkworks-algebra", branch = "dev/twist-shout" }
+ark-serialize = { git = "https://github.com/a16z/arkworks-algebra", branch = "dev/twist-shout" }
+ark-bn254 = { git = "https://github.com/a16z/arkworks-algebra", branch = "dev/twist-shout" }
