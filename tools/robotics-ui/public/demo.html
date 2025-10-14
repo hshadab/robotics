@@ -354,23 +354,31 @@
   </header>
 
   <main>
-    <!-- Metrics Dashboard -->
-    <div class="metrics-grid">
-      <div class="metric-card">
-        <div class="metric-value" id="metricFrames">0</div>
-        <div class="metric-label">Frames Processed</div>
+    <!-- Controls -->
+    <div class="card" style="margin-bottom: 20px;">
+      <div class="card-header">
+        <h2>🎮 System Controls</h2>
       </div>
-      <div class="metric-card">
-        <div class="metric-value" id="metricProofs">0</div>
-        <div class="metric-label">Proofs Generated</div>
+      <div class="controls-row">
+        <button id="btnStartFull" class="ok">▶ Start Full Demo</button>
+        <button id="btnStopAll" class="danger">⏹ Stop All</button>
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+          <input type="checkbox" id="chkProofOn" checked />
+          Enable Proofs
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+          Mode:
+          <select id="selMode" style="padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text);">
+            <option value="http">HTTP Verifier</option>
+            <option value="cli">CLI Verifier</option>
+          </select>
+        </label>
       </div>
-      <div class="metric-card">
-        <div class="metric-value" id="metricSuccess">—</div>
-        <div class="metric-label">Success Rate</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-value" id="metricAvgTime">—</div>
-        <div class="metric-label">Avg Proof Time</div>
+      <div class="controls-row">
+        <div class="pill"><span class="status-dot" id="sVerifier"></span> Verifier</div>
+        <div class="pill"><span class="status-dot" id="sCamera"></span> Camera</div>
+        <div class="pill"><span class="status-dot" id="sGuard"></span> Guard</div>
+        <div class="pill"><span class="status-dot" id="sTeleop"></span> Teleop</div>
       </div>
     </div>
 
@@ -433,31 +441,23 @@
       </div>
     </div>
 
-    <!-- Controls -->
-    <div class="card" style="margin-bottom: 20px;">
-      <div class="card-header">
-        <h2>🎮 System Controls</h2>
+    <!-- Metrics Dashboard -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-value" id="metricFrames">0</div>
+        <div class="metric-label">Frames Processed</div>
       </div>
-      <div class="controls-row">
-        <button id="btnStartFull" class="ok">▶ Start Full Demo</button>
-        <button id="btnStopAll" class="danger">⏹ Stop All</button>
-        <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
-          <input type="checkbox" id="chkProofOn" checked />
-          Enable Proofs
-        </label>
-        <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
-          Mode:
-          <select id="selMode" style="padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text);">
-            <option value="http">HTTP Verifier</option>
-            <option value="cli">CLI Verifier</option>
-          </select>
-        </label>
+      <div class="metric-card">
+        <div class="metric-value" id="metricProofs">0</div>
+        <div class="metric-label">Proofs Generated</div>
       </div>
-      <div class="controls-row">
-        <div class="pill"><span class="status-dot" id="sVerifier"></span> Verifier</div>
-        <div class="pill"><span class="status-dot" id="sCamera"></span> Camera</div>
-        <div class="pill"><span class="status-dot" id="sGuard"></span> Guard</div>
-        <div class="pill"><span class="status-dot" id="sTeleop"></span> Teleop</div>
+      <div class="metric-card">
+        <div class="metric-value" id="metricSuccess">—</div>
+        <div class="metric-label">Success Rate</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value" id="metricAvgTime">—</div>
+        <div class="metric-label">Avg Proof Time</div>
       </div>
     </div>
 
