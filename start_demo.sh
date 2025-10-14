@@ -41,8 +41,10 @@ fi
 
 # Check Python dependencies
 if ! python3 -c "import onnxruntime, numpy, PIL, requests" 2>/dev/null; then
-    echo -e "${YELLOW}⚠ Installing Python dependencies...${NC}"
-    pip install -r src/zkml_guard/requirements.txt
+    echo -e "${YELLOW}⚠ Python dependencies not installed${NC}"
+    echo -e "${YELLOW}  Please install with: pip install -r src/zkml_guard/requirements.txt${NC}"
+    echo -e "${YELLOW}  Or use --break-system-packages if needed${NC}"
+    echo -e "${YELLOW}  Continuing anyway...${NC}"
 fi
 
 # Check Node.js dependencies for verifier
