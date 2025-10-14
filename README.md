@@ -12,7 +12,38 @@ This demo integrates JOLT Atlas zero-knowledge proofs with ROS 2 to create a tru
 - **twist_mux** enforces high-priority lock on `/cmd_vel` commands
 - **Web UI**: Real-time monitoring and control at http://localhost:9200
 
-## Quick Start (Web UI)
+## Quick Start (Automated)
+
+**One-command demo launch:**
+
+```bash
+cd ~/robotics
+./start_demo.sh
+```
+
+This automatically:
+- Checks and installs all dependencies
+- Builds ROS workspace if needed
+- Starts ONNX verifier (port 9100)
+- Starts UI server with auto-proxy launch (port 9200)
+- Launches camera, zkML guard, and teleop
+- Opens browser to demo UI
+
+**Options:**
+```bash
+./start_demo.sh --help          # Show all options
+./start_demo.sh --cli           # Use CLI verifier instead of HTTP
+./start_demo.sh --burger        # Use test pattern instead of camera
+./start_demo.sh --record        # Record to MCAP file
+./start_demo.sh --no-browser    # Don't auto-open browser
+```
+
+**Stop everything:**
+```bash
+./stop_demo.sh
+```
+
+## Manual Quick Start
 
 **Prerequisites:**
 - ROS 2 (Jazzy/Humble/Rolling)

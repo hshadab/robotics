@@ -1,6 +1,29 @@
 # Quick Start Guide
 
-## Web UI (Recommended)
+## Automated Launch (Easiest)
+
+**Just run:**
+```bash
+cd ~/robotics
+./start_demo.sh
+```
+
+Done! The script handles everything and opens your browser automatically.
+
+**Options:**
+```bash
+./start_demo.sh --cli           # Use CLI verifier
+./start_demo.sh --burger        # Test pattern (no camera needed)
+./start_demo.sh --record        # Record to MCAP
+./start_demo.sh --no-browser    # Don't open browser
+```
+
+**Stop:**
+```bash
+./stop_demo.sh
+```
+
+## Manual Launch (Web UI)
 
 ```bash
 # 1. Build ROS workspace (first time only)
@@ -20,8 +43,6 @@ npm start
 # 4. Open http://localhost:9200/demo.html
 # Click "Start Full Demo"
 ```
-
-That's it! The UI handles everything else.
 
 ## Manual Mode (3 terminals)
 
