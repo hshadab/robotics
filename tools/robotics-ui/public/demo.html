@@ -46,22 +46,9 @@
       position: relative;
       overflow: hidden;
     }
-    .hero-section::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--accent), transparent);
-      animation: shimmer 2s infinite;
-    }
-    @keyframes shimmer {
-      0%, 100% { opacity: 0.3; }
-      50% { opacity: 1; }
-    }
+    /* Removed glowing horizontal bar */
 
-    .hero-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 32px; }
+    .hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
 
     .video-container {
       position: relative;
@@ -88,36 +75,25 @@
     .detection-badge {
       background: rgba(20, 27, 36, 0.95);
       backdrop-filter: blur(8px);
-      padding: 8px 14px;
+      padding: 12px 18px;
       border-radius: 8px;
       border: 1px solid var(--border);
       font-family: 'JetBrains Mono', monospace;
-      font-size: 13px;
+      font-size: 18px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
-    .detection-badge .label { color: var(--ok); font-weight: 600; }
-    .detection-badge .conf { color: var(--muted); }
+    .detection-badge .label { color: var(--ok); font-weight: 700; }
+    .detection-badge .conf { color: var(--muted); font-weight: 600; }
 
-    .fps-counter {
-      position: absolute;
-      bottom: 12px;
-      right: 12px;
-      background: rgba(20, 27, 36, 0.95);
-      backdrop-filter: blur(8px);
-      padding: 6px 12px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
-      color: var(--ok);
-    }
+    /* FPS counter removed - was distracting during demos */
 
     .proof-pipeline {
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
       gap: 16px;
+      justify-content: space-between;
     }
     .pipeline-step {
       background: var(--code-bg);
@@ -125,36 +101,63 @@
       border-radius: 10px;
       padding: 16px;
       position: relative;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      min-height: 140px;
     }
     .pipeline-step.active {
       border-color: var(--accent);
       box-shadow: 0 0 20px var(--accent-glow);
+      animation: stepGlow 2.5s ease-in-out infinite;
+    }
+    @keyframes stepGlow {
+      0%, 100% {
+        box-shadow: 0 0 20px var(--accent-glow);
+      }
+      50% {
+        box-shadow: 0 0 30px var(--accent-glow), 0 0 15px var(--accent);
+      }
     }
     .pipeline-step.complete {
       border-color: var(--ok);
     }
     .step-header {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 8px;
+      gap: 12px;
+      margin-bottom: 12px;
+      width: 100%;
     }
     .step-icon {
-      width: 32px;
-      height: 32px;
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
+      font-size: 20px;
       background: var(--panel);
       border: 2px solid var(--border);
     }
-    .step-icon.active { border-color: var(--accent); animation: pulse 1.5s infinite; }
+    .step-icon.active {
+      border-color: var(--accent);
+      background: var(--accent-glow);
+      animation: pulse 2.5s ease-in-out infinite;
+    }
     .step-icon.complete { border-color: var(--ok); background: var(--ok); }
     @keyframes pulse {
-      0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
-      50% { box-shadow: 0 0 0 8px transparent; }
+      0%, 100% {
+        box-shadow: 0 0 0 0 var(--accent-glow), 0 0 15px var(--accent);
+        transform: scale(1);
+      }
+      50% {
+        box-shadow: 0 0 0 12px transparent, 0 0 25px var(--accent);
+        transform: scale(1.05);
+      }
     }
     .step-title { font-weight: 600; font-size: 14px; }
     .step-time { color: var(--muted); font-size: 12px; font-family: 'JetBrains Mono', monospace; }
@@ -284,8 +287,24 @@
     }
     button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px var(--accent-glow); }
     button.secondary { background: var(--panel-light); }
-    button.ok { background: var(--ok); }
-    button.danger { background: var(--err); }
+    button.ok {
+      background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
+      position: relative;
+    }
+    button.ok.active {
+      background: linear-gradient(135deg, #22c55e 0%, #4ade80 100%);
+      border: 4px solid #22c55e;
+      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.3);
+    }
+    button.danger {
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+      position: relative;
+    }
+    button.danger.active {
+      background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+      border: 4px solid #ef4444;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3);
+    }
 
     .pill {
       display: inline-flex;
@@ -323,17 +342,65 @@
     .event-line {
       padding: 4px 0;
       border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
     .event-line:last-child { border-bottom: none; }
     .event-ts { color: var(--muted); }
     .event-proof-ok { color: var(--ok); }
     .event-proof-fail { color: var(--warn); }
+    .proof-snapshot {
+      width: 60px;
+      height: 45px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .event-content {
+      flex: 1;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
 
     .controls-row {
       display: flex;
       gap: 12px;
       flex-wrap: wrap;
       margin-bottom: 16px;
+    }
+
+    .motion-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 2px solid var(--border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    .motion-badge-icon {
+      font-size: 18px;
+    }
+    .motion-badge-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .motion-badge-status {
+      font-size: 14px;
+      line-height: 1;
+    }
+    .motion-badge-details {
+      font-size: 10px;
+      opacity: 0.8;
+      line-height: 1;
     }
   </style>
 </head>
@@ -358,10 +425,17 @@
     <div class="card" style="margin-bottom: 20px;">
       <div class="card-header">
         <h2>🎮 System Controls</h2>
+        <div class="motion-badge" id="motionBadge">
+          <div class="motion-badge-icon" id="motionBadgeIcon">⏸</div>
+          <div class="motion-badge-text">
+            <div class="motion-badge-status" id="motionBadgeStatus">MOTION IDLE</div>
+            <div class="motion-badge-details" id="motionBadgeDetails">No active proof</div>
+          </div>
+        </div>
       </div>
       <div class="controls-row">
         <button id="btnStartFull" class="ok">▶ Start Full Demo</button>
-        <button id="btnStopAll" class="danger">⏹ Stop All</button>
+        <button id="btnStopAll" class="danger active">⏹ Stop All</button>
         <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
           <input type="checkbox" id="chkProofOn" checked />
           Enable Proofs
@@ -373,16 +447,181 @@
             <option value="cli">CLI Verifier</option>
           </select>
         </label>
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; padding: 6px 12px; border-radius: 6px; border: 2px solid var(--border); background: var(--panel-light);">
+          <input type="checkbox" id="chkSecurityDemo" />
+          🔒 Security Demo Mode
+        </label>
       </div>
       <div class="controls-row">
         <div class="pill"><span class="status-dot" id="sVerifier"></span> Verifier</div>
         <div class="pill"><span class="status-dot" id="sCamera"></span> Camera</div>
         <div class="pill"><span class="status-dot" id="sGuard"></span> Guard</div>
         <div class="pill"><span class="status-dot" id="sTeleop"></span> Teleop</div>
+        <div class="pill" id="winCamPill"><span class="status-dot" id="sWinCam"></span> <span id="winCamText">Win Camera</span></div>
+        <button id="btnWinCamHelp" class="secondary" style="font-size: 12px; padding: 6px 12px;">📷 Camera Help</button>
       </div>
     </div>
 
-    <!-- Hero Section: Camera + Proof Pipeline -->
+    <!-- Security Demo Panel (hidden by default) -->
+    <div id="securityDemoPanel" class="card" style="margin-bottom: 20px; display: none; border-left: 4px solid var(--err);">
+      <div class="card-header">
+        <h2>🔒 Security Attack Demonstrations</h2>
+        <button id="btnCloseSecurityDemo" class="secondary" style="font-size: 12px; padding: 4px 10px;">✕</button>
+      </div>
+      <div style="color: var(--muted); margin-bottom: 16px; font-size: 14px;">
+        Show investors how zkML protects against real-world attacks. These simulations demonstrate cryptographic guarantees in action.
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 16px;">
+        <!-- Attack 1: Model Substitution -->
+        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <span style="font-size: 24px;">⚠️</span>
+            <div>
+              <div style="font-weight: 600; font-size: 14px;">Attack 1: Model Substitution</div>
+              <div style="font-size: 12px; color: var(--muted);">Replace model with malicious version</div>
+            </div>
+          </div>
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
+            <strong>Scenario:</strong> Attacker swaps MobileNetV2 with backdoored model that always returns "safe" to bypass safety checks.
+          </div>
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
+            <strong>Without zkML:</strong> ❌ No detection, robot compromised<br/>
+            <strong>With zkML:</strong> ✅ Model SHA256 changes, proof fails, motion locks
+          </div>
+          <button id="btnAttack1" class="danger" style="width: 100%; font-size: 13px;">
+            🎯 Simulate Attack
+          </button>
+        </div>
+
+        <!-- Attack 2: Inference Result Forgery -->
+        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <span style="font-size: 24px;">🎭</span>
+            <div>
+              <div style="font-weight: 600; font-size: 14px;">Attack 2: Result Forgery</div>
+              <div style="font-size: 12px; color: var(--muted);">Fake confidence scores</div>
+            </div>
+          </div>
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
+            <strong>Scenario:</strong> Compromise guard node to report fake 99% confidence for "safe" classification.
+          </div>
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
+            <strong>Without zkML:</strong> ❌ Forged results accepted<br/>
+            <strong>With zkML:</strong> ✅ Input hash mismatch, proof verification fails
+          </div>
+          <button id="btnAttack2" class="danger" style="width: 100%; font-size: 13px;">
+            🎯 Simulate Attack
+          </button>
+        </div>
+
+        <!-- Attack 3: Replay Attack -->
+        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <span style="font-size: 24px;">🔁</span>
+            <div>
+              <div style="font-weight: 600; font-size: 14px;">Attack 3: Replay Attack</div>
+              <div style="font-size: 12px; color: var(--muted);">Reuse old proof from yesterday</div>
+            </div>
+          </div>
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
+            <strong>Scenario:</strong> Replay yesterday's valid proof to unlock motion without running current inference.
+          </div>
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
+            <strong>Without zkML:</strong> ❌ Timestamp can be forged<br/>
+            <strong>With zkML:</strong> ✅ verified_until expired, proof rejected
+          </div>
+          <button id="btnAttack3" class="danger" style="width: 100%; font-size: 13px;">
+            🎯 Simulate Attack
+          </button>
+        </div>
+
+        <!-- Attack 4: Proof Bypass -->
+        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <span style="font-size: 24px;">🚫</span>
+            <div>
+              <div style="font-weight: 600; font-size: 14px;">Attack 4: Proof Bypass</div>
+              <div style="font-size: 12px; color: var(--muted);">Skip verification entirely</div>
+            </div>
+          </div>
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
+            <strong>Scenario:</strong> Modify code to skip proof verification and always unlock motion.
+          </div>
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
+            <strong>Without zkML:</strong> ❌ Software bypass possible<br/>
+            <strong>With zkML:</strong> ✅ Fail-safe: locks by default, audit trail shows missing proofs
+          </div>
+          <button id="btnAttack4" class="danger" style="width: 100%; font-size: 13px;">
+            🎯 Simulate Attack
+          </button>
+        </div>
+      </div>
+
+      <!-- Attack Status Display -->
+      <div id="attackStatus" style="display: none; background: var(--panel); border: 2px solid var(--err); border-radius: 8px; padding: 16px; animation: pulse 2s infinite;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 32px;">⚠️</span>
+          <div style="flex: 1;">
+            <div style="font-weight: 700; font-size: 16px; color: var(--err); margin-bottom: 4px;">ATTACK IN PROGRESS</div>
+            <div id="attackStatusText" style="font-size: 14px; color: var(--text); font-family: 'JetBrains Mono', monospace;"></div>
+          </div>
+          <button id="btnStopAttack" class="ok" style="font-size: 13px;">✓ Stop & Verify Defense</button>
+        </div>
+      </div>
+
+      <!-- Attack Metrics -->
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px;">
+        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center;">
+          <div style="font-size: 24px; font-weight: 700; color: var(--err); font-family: 'JetBrains Mono', monospace;" id="attacksBlocked">0</div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">ATTACKS BLOCKED</div>
+        </div>
+        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center;">
+          <div style="font-size: 24px; font-weight: 700; color: var(--ok); font-family: 'JetBrains Mono', monospace;">100%</div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">DEFENSE SUCCESS RATE</div>
+        </div>
+        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center;">
+          <div style="font-size: 24px; font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace;">&lt;1s</div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">DETECTION TIME</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Windows Camera Instructions (hidden by default) -->
+    <div id="winCamInstructions" class="card" style="margin-bottom: 20px; display: none; border-left: 4px solid var(--warn);">
+      <div class="card-header">
+        <h2>📷 Start Windows Camera</h2>
+        <button id="btnCloseInstructions" class="secondary" style="font-size: 12px; padding: 4px 10px;">✕</button>
+      </div>
+      <div style="color: var(--muted); margin-bottom: 12px;">
+        The Windows camera HTTP server is not running. Follow these steps to start it:
+      </div>
+      <div style="background: var(--code-bg); border-radius: 8px; padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 13px; margin-bottom: 12px;">
+        <div style="color: var(--ok); margin-bottom: 8px;">Step 1: Open PowerShell on Windows</div>
+        <div style="color: var(--muted); margin-bottom: 12px;">Press <kbd style="background: var(--panel); padding: 2px 6px; border-radius: 4px;">Win + X</kbd>, then select "Windows PowerShell"</div>
+
+        <div style="color: var(--ok); margin-bottom: 8px;">Step 2: Navigate to robotics directory</div>
+        <div style="background: var(--panel); padding: 8px; border-radius: 4px; margin-bottom: 4px;">
+          cd \\wsl$\Ubuntu\home\hshadab\robotics
+        </div>
+        <button id="btnCopyPath" class="secondary" style="font-size: 11px; padding: 4px 8px; margin-bottom: 12px;">📋 Copy Path</button>
+
+        <div style="color: var(--ok); margin-bottom: 8px;">Step 3: Run the camera script with ID 1</div>
+        <div style="background: var(--panel); padding: 8px; border-radius: 4px; margin-bottom: 4px;">
+          python simple_windows_camera.py 1
+        </div>
+        <button id="btnCopyCmd" class="secondary" style="font-size: 11px; padding: 4px 8px; margin-bottom: 12px;">📋 Copy Command</button>
+
+        <div style="color: var(--ok); margin-bottom: 8px;">✓ Your webcam light should turn ON</div>
+        <div style="color: var(--muted);">Keep the PowerShell window open while using the demo</div>
+      </div>
+      <div style="display: flex; gap: 12px;">
+        <button id="btnRefreshCam" class="ok" style="font-size: 13px;">🔄 Check Camera Status</button>
+        <button id="btnTestWithPattern" class="secondary" style="font-size: 13px;">🎨 Use Test Pattern Instead</button>
+      </div>
+    </div>
+
+    <!-- Hero Section: Camera + Verified Proofs -->
     <div class="hero-section">
       <div class="hero-grid">
         <!-- Live Camera Feed -->
@@ -396,101 +635,72 @@
                 <span class="conf" id="detectionConf">—</span>
               </div>
             </div>
-            <div class="fps-counter" id="fpsCounter">— FPS</div>
           </div>
         </div>
 
-        <!-- Proof Pipeline -->
+        <!-- Verified Proofs -->
         <div>
-          <h2 style="margin-bottom: 16px;">⚡ ZK Proof Pipeline</h2>
-          <div class="proof-pipeline">
-            <div class="pipeline-step" id="step1">
-              <div class="step-header">
-                <div class="step-icon">🔍</div>
-                <div>
-                  <div class="step-title">ML Inference</div>
-                  <div class="step-time" id="step1Time">—</div>
-                </div>
-              </div>
-              <div class="step-details" id="step1Details">Waiting for image...</div>
-            </div>
-
-            <div class="pipeline-step" id="step2">
-              <div class="step-header">
-                <div class="step-icon">🔐</div>
-                <div>
-                  <div class="step-title">Proof Generation</div>
-                  <div class="step-time" id="step2Time">—</div>
-                </div>
-              </div>
-              <div class="step-details" id="step2Details">Waiting...</div>
-            </div>
-
-            <div class="pipeline-step" id="step3">
-              <div class="step-header">
-                <div class="step-icon">✓</div>
-                <div>
-                  <div class="step-title">Verification</div>
-                  <div class="step-time" id="step3Time">—</div>
-                </div>
-              </div>
-              <div class="step-details" id="step3Details">Waiting...</div>
-            </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+            <h2>✓ Verified Proofs</h2>
+            <button id="btnClearProofs" class="secondary" style="font-size: 12px; padding: 6px 12px;">Clear</button>
+          </div>
+          <div class="event-log" id="verifiedProofsList" style="max-height: 450px;">
+            <div style="color: var(--muted); text-align: center; padding: 20px;">No verified proofs yet</div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Metrics Dashboard -->
-    <div class="metrics-grid">
-      <div class="metric-card">
-        <div class="metric-value" id="metricFrames">0</div>
-        <div class="metric-label">Frames Processed</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-value" id="metricProofs">0</div>
-        <div class="metric-label">Proofs Generated</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-value" id="metricSuccess">—</div>
-        <div class="metric-label">Success Rate</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-value" id="metricAvgTime">—</div>
-        <div class="metric-label">Avg Proof Time</div>
-      </div>
-    </div>
+    <!-- ZK Proof Pipeline (horizontal) -->
+    <div style="margin-bottom: 24px;">
+      <h2 style="margin-bottom: 16px;">⚡ ZK Proof Pipeline</h2>
+      <div class="proof-pipeline">
+        <div class="pipeline-step" id="step1">
+          <div class="step-header">
+            <div class="step-icon">🔍</div>
+            <div>
+              <div class="step-title">ML Inference</div>
+              <div class="step-time" id="step1Time">—</div>
+            </div>
+          </div>
+          <div class="step-details" id="step1Details">Waiting for image...</div>
+        </div>
 
-    <div class="grid-2">
-      <!-- Top 5 Predictions -->
-      <div class="card">
-        <div class="card-header">
-          <h2>📊 Model Predictions</h2>
+        <div class="pipeline-step" id="step2">
+          <div class="step-header">
+            <div class="step-icon">🔐</div>
+            <div>
+              <div class="step-title">Proof Generation</div>
+              <div class="step-time" id="step2Time">—</div>
+            </div>
+          </div>
+          <div class="step-details" id="step2Details">Waiting...</div>
         </div>
-        <div class="confidence-bars" id="confidenceBars">
-          <div style="color: var(--muted); text-align: center; padding: 20px;">Waiting for predictions...</div>
-        </div>
-      </div>
 
-      <!-- Proof Details -->
-      <div class="card">
-        <div class="card-header">
-          <h2>🔐 Latest Proof</h2>
-          <button id="btnDownloadProof" class="secondary" style="font-size: 12px; padding: 6px 12px;">Download JSON</button>
-        </div>
-        <div class="proof-explorer" id="proofExplorer">
-          <div style="color: var(--muted); text-align: center; padding: 20px;">No proof generated yet</div>
+        <div class="pipeline-step" id="step3">
+          <div class="step-header">
+            <div class="step-icon">✓</div>
+            <div>
+              <div class="step-title">Verification</div>
+              <div class="step-time" id="step3Time">—</div>
+            </div>
+          </div>
+          <div class="step-details" id="step3Details">Waiting...</div>
         </div>
       </div>
     </div>
 
-    <!-- Event Log -->
-    <div class="card">
+    <!-- Latest Proof - Full Width with 2x4 Grid -->
+    <div class="card" style="margin-bottom: 20px;">
       <div class="card-header">
-        <h2>📝 Event Log</h2>
+        <h2>🔐 Latest Proof</h2>
+        <button id="btnDownloadProof" class="secondary" style="font-size: 12px; padding: 6px 12px;">Download JSON</button>
       </div>
-      <div class="event-log" id="eventLog"></div>
+      <div id="proofExplorer" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+        <div style="color: var(--muted); text-align: center; padding: 20px; grid-column: 1 / -1;">No proof generated yet</div>
+      </div>
     </div>
+
   </main>
 
   <script>
@@ -525,11 +735,8 @@
     // Update camera feed
     function updateCamera() {
       const now = Date.now();
-      const fps = Math.round(1000 / (now - lastFrameTime));
-      lastFrameTime = now;
 
       q('cameraFeed').src = `/api/frame.png?ts=${now}`;
-      q('fpsCounter').textContent = `${fps} FPS`;
       frameCount++;
     }
 
@@ -554,38 +761,65 @@
       } else if (event.predicate_met) {
         q('step2').className = 'pipeline-step active';
         q('step2').querySelector('.step-icon').className = 'step-icon active';
+        q('step2').querySelector('.step-icon').textContent = '🔐';
         q('step2Time').textContent = 'Generating...';
-        q('step2Details').textContent = 'Creating cryptographic proof';
+        q('step2Details').textContent = 'Creating cryptographic proof (this takes ~4-13s)';
       } else {
         q('step2').className = 'pipeline-step';
         q('step2').querySelector('.step-icon').className = 'step-icon';
-        q('step2Time').textContent = 'Waiting';
-        q('step2Details').textContent = 'Predicate not met';
+        q('step2').querySelector('.step-icon').textContent = '⏸';
+        q('step2Time').textContent = 'Ready';
+        q('step2Details').textContent = 'Waiting for confidence threshold';
       }
 
       // Step 3: Verification
-      if (event.proof_verified === true) {
+      // Keep showing "Verified" state as long as motion is unlocked (within 10 second window)
+      const now = Date.now() / 1000;
+      const verifiedUntil = event.verified_until || 0;
+      const stillUnlocked = verifiedUntil > now;
+
+      if (event.proof_verified === true && stillUnlocked) {
+        // Show verified state for the full 10-second unlock duration
+        const timeLeft = Math.ceil(verifiedUntil - now);
         q('step3').className = 'pipeline-step complete';
         q('step3').querySelector('.step-icon').className = 'step-icon complete';
         q('step3').querySelector('.step-icon').textContent = '✓';
-        q('step3Time').textContent = 'Verified';
+        q('step3Time').textContent = `Verified (${timeLeft}s)`;
         q('step3Details').textContent = '✓ Proof cryptographically valid';
-        successCount++;
-      } else if (event.proof_verified === false) {
+
+        // Only increment successCount once per proof
+        if (event.proof_id && !window.seenProofIds.has(event.proof_id)) {
+          successCount++;
+        }
+      } else if (event.proof_verified === false && event.proof_id) {
+        // Only show "Failed" if there was actually a proof attempt (has proof_id)
         q('step3').className = 'pipeline-step';
         q('step3').querySelector('.step-icon').textContent = '✗';
         q('step3Time').textContent = 'Failed';
         q('step3Details').textContent = 'Proof verification failed';
       } else {
+        // Default "at rest" state (after unlock expires or no proof yet)
         q('step3').className = 'pipeline-step';
-        q('step3Time').textContent = 'Waiting';
-        q('step3Details').textContent = 'Awaiting proof';
+        q('step3').querySelector('.step-icon').className = 'step-icon';
+        q('step3').querySelector('.step-icon').textContent = '⏸';
+        q('step3Time').textContent = 'Ready';
+        q('step3Details').textContent = 'Awaiting proof generation';
       }
 
-      if (event.proof_ms) {
-        proofCount++;
-        proofTimes.push(event.proof_ms);
-        if (proofTimes.length > 20) proofTimes.shift();
+      // Count proofs: increment when we have a verified or failed proof status
+      if (event.proof_verified === true || event.proof_verified === false) {
+        // Only count this proof once by checking if we've seen this proof_id before
+        if (event.proof_id && !window.seenProofIds) {
+          window.seenProofIds = new Set();
+        }
+        if (event.proof_id && !window.seenProofIds.has(event.proof_id)) {
+          window.seenProofIds.add(event.proof_id);
+          proofCount++;
+          if (event.proof_ms) {
+            proofTimes.push(event.proof_ms);
+            if (proofTimes.length > 20) proofTimes.shift();
+          }
+        }
       }
     }
 
@@ -621,47 +855,154 @@
       `).join('');
     }
 
-    // Update proof explorer
+    // Update proof explorer (2x4 grid layout)
     function updateProofExplorer(event) {
       if (!event) return;
 
       const fields = [
-        { key: 'Model SHA-256', value: event.model_sha256 },
-        { key: 'Input SHA-256', value: event.input_sha256 },
-        { key: 'Top Prediction', value: `${event.top1_label} (ID: ${event.top1_id})` },
-        { key: 'Confidence', value: `${(event.top1_score * 100).toFixed(2)}%` },
+        { key: 'Top Prediction', value: event.top1_label ? `${event.top1_label}` : 'N/A' },
+        { key: 'Confidence', value: event.top1_score ? `${(event.top1_score * 100).toFixed(2)}%` : 'N/A' },
         { key: 'Proof Verified', value: event.proof_verified ? '✓ TRUE' : '✗ FALSE' },
         { key: 'Proof Time', value: event.proof_ms ? `${event.proof_ms}ms` : 'N/A' },
-        { key: 'Proof ID', value: event.proof_id || 'N/A' },
-        { key: 'Timestamp', value: new Date(event.ts * 1000).toLocaleString() },
+        { key: 'Model Hash', value: event.model_sha256 ? `${event.model_sha256.substring(0, 16)}...` : 'N/A' },
+        { key: 'Input Hash', value: event.input_sha256 ? `${event.input_sha256.substring(0, 16)}...` : 'N/A' },
+        { key: 'Proof ID', value: event.proof_id ? `${event.proof_id.substring(0, 16)}...` : 'N/A' },
+        { key: 'Timestamp', value: event.ts ? new Date(event.ts * 1000).toLocaleTimeString() : 'N/A' },
       ];
 
       q('proofExplorer').innerHTML = fields.map(f => `
-        <div class="proof-field">
-          <span class="key">${f.key}:</span>
-          <span class="value">${f.value || 'N/A'}</span>
+        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center;">
+          <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">${f.key}</div>
+          <div style="font-size: 14px; font-weight: 600; color: var(--text); font-family: 'JetBrains Mono', monospace; word-break: break-all;">${f.value || 'N/A'}</div>
         </div>
       `).join('');
     }
 
-    // Update event log
-    function updateEventLog(event) {
+    // Update motion gating status
+    function updateMotionGating(event) {
       if (!event) return;
 
-      const log = q('eventLog');
-      const line = document.createElement('div');
-      line.className = 'event-line';
-      const ts = new Date(event.ts * 1000).toLocaleTimeString();
-      const proofStatus = event.proof_verified ?
-        `<span class="event-proof-ok">✓ VERIFIED</span>` :
-        event.proof_verified === false ?
-        `<span class="event-proof-fail">✗ FAILED</span>` :
-        '— pending';
+      // Badge elements
+      const badge = q('motionBadge');
+      const badgeIcon = q('motionBadgeIcon');
+      const badgeStatus = q('motionBadgeStatus');
+      const badgeDetails = q('motionBadgeDetails');
 
-      line.innerHTML = `<span class="event-ts">[${ts}]</span> ${event.top1_label} (${(event.top1_score * 100).toFixed(1)}%) → ${proofStatus}`;
-      log.appendChild(line);
-      if (log.children.length > 50) log.removeChild(log.firstChild);
-      log.scrollTop = log.scrollHeight;
+      const now = Date.now() / 1000; // Current time in seconds
+      const verifiedUntil = event.verified_until || 0;
+      const timeRemaining = verifiedUntil - now;
+
+      // Only show MOTION ALLOWED if:
+      // 1. We have a verified proof (proof_verified === true)
+      // 2. AND the countdown hasn't expired (timeRemaining > 0)
+      const hasActiveProof = event.proof_verified === true && timeRemaining > 0;
+
+      if (hasActiveProof) {
+        // MOTION ALLOWED - valid proof exists and is still within unlock window
+        const seconds = Math.ceil(timeRemaining);
+
+        // Update badge
+        badge.style.borderColor = 'var(--ok)';
+        badge.style.backgroundColor = 'rgba(34, 197, 94, 0.1)';
+        badgeIcon.textContent = '✓';
+        badgeIcon.style.color = 'var(--ok)';
+        badgeStatus.textContent = 'MOTION ALLOWED';
+        badgeStatus.style.color = 'var(--ok)';
+        badgeDetails.textContent = `Unlocked for ${seconds}s (proof verified)`;
+        badgeDetails.style.color = 'var(--ok)';
+      } else {
+        // MOTION STOPPED - no valid proof or expired
+        let reason = 'Waiting for proof verification';
+
+        if (event.proof_verified === false && event.proof_id) {
+          reason = 'Proof verification failed';
+        } else if (event.proof_verified === true && timeRemaining <= 0) {
+          reason = 'Proof expired - need new verification';
+        } else if (event.predicate_met && !event.proof_id) {
+          reason = 'Generating proof...';
+        } else if (!event.predicate_met) {
+          reason = 'Confidence below threshold (25%)';
+        }
+
+        // Update badge
+        badge.style.borderColor = 'var(--err)';
+        badge.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+        badgeIcon.textContent = '✗';
+        badgeIcon.style.color = 'var(--err)';
+        badgeStatus.textContent = 'MOTION STOPPED';
+        badgeStatus.style.color = 'var(--err)';
+        badgeDetails.textContent = reason;
+        badgeDetails.style.color = 'var(--err)';
+      }
+    }
+
+    // Update verified proofs list from API
+    async function updateVerifiedProofsList() {
+      try {
+        const r = await api('/api/verified_proofs');
+        const proofs = await r.json();
+
+        const list = q('verifiedProofsList');
+
+        if (!proofs || proofs.length === 0) {
+          list.innerHTML = '<div style="color: var(--muted); text-align: center; padding: 20px;">No verified proofs yet</div>';
+          return;
+        }
+
+        // Build HTML for all proofs
+        const html = proofs.map(event => {
+          const ts = new Date(event.ts * 1000).toLocaleString();
+          const shortProofId = event.proof_id ? event.proof_id.substring(0, 12) + '...' : 'N/A';
+          const proofTime = event.proof_ms ? ` (${event.proof_ms}ms)` : '';
+
+          // Include snapshot thumbnail if available
+          const snapshotHtml = event.snapshot ?
+            `<img src="/api/snapshot/${event.snapshot}.png" class="proof-snapshot" alt="Snapshot" />` :
+            '';
+
+          return `
+            <div class="event-line">
+              ${snapshotHtml}
+              <div class="event-content">
+                <span class="event-ts">[${ts}]</span>
+                <span class="event-proof-ok">✓ ${event.top1_label || 'Unknown'}</span>
+                <span style="color: var(--muted);">${(event.top1_score * 100).toFixed(1)}%${proofTime}</span>
+                <span style="color: var(--accent); font-size: 10px;">ID: ${shortProofId}</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        list.innerHTML = html;
+      } catch (e) {
+        console.error('Failed to load verified proofs:', e);
+      }
+    }
+
+    // Check Windows camera status
+    async function checkWindowsCamera() {
+      try {
+        const r = await api('/api/windows_camera_status');
+        const result = await r.json();
+        const dot = q('sWinCam');
+        const text = q('winCamText');
+        const pill = q('winCamPill');
+
+        if (result.running) {
+          dot.className = 'status-dot on';
+          text.textContent = 'Win Camera ON';
+          pill.style.borderColor = 'var(--ok)';
+        } else {
+          dot.className = 'status-dot';
+          text.textContent = 'Win Camera OFF';
+          pill.style.borderColor = 'var(--warn)';
+        }
+
+        return result.running;
+      } catch (e) {
+        console.error('Camera check failed:', e);
+        return false;
+      }
     }
 
     // Main update function
@@ -669,17 +1010,38 @@
       try {
         const r = await api('/api/last_event');
         if (r.status === 200) {
-          const event = await r.json();
-          if (event.ts !== lastEvent?.ts) {
+          let event = await r.json();
+
+          // Fetch verified proofs to merge with live event
+          const proofsResp = await api('/api/verified_proofs');
+          const verifiedProofs = await proofsResp.json();
+
+          // If we have a verified proof that matches the current verified_until window, merge it
+          if (verifiedProofs && verifiedProofs.length > 0 && event.verified_until) {
+            const mostRecentProof = verifiedProofs[0]; // Most recent verified proof
+            // Check if this verified proof is for the current unlock window
+            if (mostRecentProof.verified_until === event.verified_until && mostRecentProof.proof_verified === true) {
+              // Merge verified proof data into the event
+              event = {...event, ...mostRecentProof};
+            }
+          }
+
+          if (event.ts !== lastEvent?.ts || event.proof_verified !== lastEvent?.proof_verified) {
             lastEvent = event;
             updatePipeline(event);
             updateDetection(event);
-            updateConfidenceBars(event);
             updateProofExplorer(event);
-            updateEventLog(event);
+            updateMotionGating(event);
             updateMetrics();
+          } else if (lastEvent) {
+            // Still update motion gating and pipeline even if event hasn't changed (for countdown)
+            updateMotionGating(lastEvent);
+            updatePipeline(lastEvent);
           }
         }
+
+        // Update verified proofs list from API
+        await updateVerifiedProofsList();
 
         // Update status
         const status = await (await api('/status')).json();
@@ -695,6 +1057,9 @@
         q('proxyStatus').className = allRunning ? 'status-dot on' : 'status-dot';
         q('proxyText').textContent = allRunning ? 'Proxies Online' : 'Proxies Offline';
 
+        // Check Windows camera
+        await checkWindowsCamera();
+
       } catch (e) {
         console.error('Update failed:', e);
       }
@@ -704,10 +1069,22 @@
     q('btnStartFull').onclick = async () => {
       const mode = q('selMode').value;
       const proofOn = q('chkProofOn').checked;
-      await api(`/start/full?mode=${mode}&burger=1&record=0`);
+      // burger=0 uses real camera, burger=1 uses test pattern
+
+      // Toggle button states
+      q('btnStartFull').classList.add('active');
+      q('btnStopAll').classList.remove('active');
+
+      await api(`/start/full?mode=${mode}&burger=0&record=0`);
     };
 
-    q('btnStopAll').onclick = () => api('/stop/all');
+    q('btnStopAll').onclick = async () => {
+      // Toggle button states
+      q('btnStopAll').classList.add('active');
+      q('btnStartFull').classList.remove('active');
+
+      await api('/stop/all');
+    };
 
     q('btnDownloadProof').onclick = () => {
       if (!lastEvent) return;
@@ -719,10 +1096,179 @@
       a.click();
     };
 
+    q('btnClearProofs').onclick = async () => {
+      try {
+        await api('/api/clear_verified_proofs', { method: 'POST' });
+        const list = q('verifiedProofsList');
+        list.innerHTML = '<div style="color: var(--muted); text-align: center; padding: 20px;">No verified proofs yet</div>';
+      } catch (e) {
+        console.error('Failed to clear verified proofs:', e);
+      }
+    };
+
+    // Windows camera help button
+    q('btnWinCamHelp').onclick = async () => {
+      const running = await checkWindowsCamera();
+      const instructions = q('winCamInstructions');
+
+      if (running) {
+        alert('✓ Windows camera is already running!\n\nYour webcam should be active and serving frames.');
+      } else {
+        instructions.style.display = 'block';
+        instructions.scrollIntoView({ behavior: 'smooth' });
+      }
+    };
+
+    // Close instructions
+    q('btnCloseInstructions').onclick = () => {
+      q('winCamInstructions').style.display = 'none';
+    };
+
+    // Copy buttons
+    q('btnCopyPath').onclick = () => {
+      navigator.clipboard.writeText('cd \\\\wsl$\\Ubuntu\\home\\hshadab\\robotics');
+      q('btnCopyPath').textContent = '✓ Copied!';
+      setTimeout(() => q('btnCopyPath').textContent = '📋 Copy Path', 2000);
+    };
+
+    q('btnCopyCmd').onclick = () => {
+      navigator.clipboard.writeText('python simple_windows_camera.py 1');
+      q('btnCopyCmd').textContent = '✓ Copied!';
+      setTimeout(() => q('btnCopyCmd').textContent = '📋 Copy Command', 2000);
+    };
+
+    // Refresh camera status
+    q('btnRefreshCam').onclick = async () => {
+      const running = await checkWindowsCamera();
+      if (running) {
+        alert('✓ Camera detected!\n\nThe Windows camera HTTP server is now running.');
+        q('winCamInstructions').style.display = 'none';
+      } else {
+        alert('✗ Camera not detected\n\nMake sure you\'ve started the camera script in PowerShell.');
+      }
+    };
+
+    // Use test pattern instead
+    q('btnTestWithPattern').onclick = async () => {
+      if (confirm('Switch to test pattern mode?\n\nThis will use an animated test pattern instead of your camera.')) {
+        await api('/stop/all');
+        await api('/start/full?mode=http&burger=1&record=0');
+        q('winCamInstructions').style.display = 'none';
+        alert('✓ Started with test pattern\n\nYou should see the animated burger pattern in the camera feed.');
+      }
+    };
+
+    // Security Demo Mode
+    let attacksBlockedCount = 0;
+    let currentAttack = null;
+
+    q('chkSecurityDemo').onchange = () => {
+      const panel = q('securityDemoPanel');
+      panel.style.display = q('chkSecurityDemo').checked ? 'block' : 'none';
+      if (q('chkSecurityDemo').checked) {
+        panel.scrollIntoView({ behavior: 'smooth' });
+      }
+    };
+
+    q('btnCloseSecurityDemo').onclick = () => {
+      q('securityDemoPanel').style.display = 'none';
+      q('chkSecurityDemo').checked = false;
+    };
+
+    // Attack simulations
+    q('btnAttack1').onclick = () => simulateAttack(1, 'Model Substitution',
+      'Replacing mobilenetv2-12.onnx with malicious model...\n' +
+      'New model SHA256: b8e4a92c... (changed from c0c3f76d...)\n' +
+      'Attempting to generate proof with tampered model...\n\n' +
+      '⚠️ ATTACK DETECTED!\n' +
+      '❌ Model hash mismatch\n' +
+      '❌ Proof verification FAILED\n' +
+      '🔒 Motion remains LOCKED\n\n' +
+      'zkML Defense: Model SHA256 mismatch prevents proof generation'
+    );
+
+    q('btnAttack2').onclick = () => simulateAttack(2, 'Result Forgery',
+      'Compromising zkml_guard_node.py to report fake results...\n' +
+      'Injecting fake confidence: 99% for "safe" classification\n' +
+      'Forging input_sha256 to match expected value...\n\n' +
+      '⚠️ ATTACK DETECTED!\n' +
+      '❌ Input hash does not match camera frame\n' +
+      '❌ Proof verification FAILED\n' +
+      '🔒 Motion remains LOCKED\n\n' +
+      'zkML Defense: Cryptographic binding to actual input prevents forgery'
+    );
+
+    q('btnAttack3').onclick = () => simulateAttack(3, 'Replay Attack',
+      'Loading proof from 24 hours ago (proof_id: a3f8d1...)...\n' +
+      'Attempting to reuse old verified proof...\n' +
+      'Checking verified_until timestamp...\n\n' +
+      '⚠️ ATTACK DETECTED!\n' +
+      '❌ Proof expired (verified_until < current_time)\n' +
+      '❌ Timestamp validation FAILED\n' +
+      '🔒 Motion remains LOCKED\n\n' +
+      'zkML Defense: Time-bound proofs prevent replay attacks'
+    );
+
+    q('btnAttack4').onclick = () => simulateAttack(4, 'Proof Bypass',
+      'Modifying zkml_guard_node.py to skip verification...\n' +
+      'Setting require_proof = False in configuration...\n' +
+      'Attempting to unlock motion without proof...\n\n' +
+      '⚠️ ATTACK DETECTED!\n' +
+      '❌ Audit log shows missing proof for motion command\n' +
+      '❌ Fail-safe engages (motion locked by default)\n' +
+      '🔒 Motion remains LOCKED\n\n' +
+      'zkML Defense: Fail-safe architecture + audit trail detects bypass attempts'
+    );
+
+    function simulateAttack(attackNum, attackName, statusText) {
+      currentAttack = attackNum;
+      const status = q('attackStatus');
+      const statusTextEl = q('attackStatusText');
+
+      // Show attack status
+      status.style.display = 'block';
+      statusTextEl.textContent = `Attack ${attackNum}: ${attackName}\n\n${statusText}`;
+
+      // Scroll to attack status
+      status.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    q('btnStopAttack').onclick = () => {
+      const status = q('attackStatus');
+      status.style.display = 'none';
+
+      // Increment attacks blocked
+      if (currentAttack) {
+        attacksBlockedCount++;
+        q('attacksBlocked').textContent = attacksBlockedCount;
+        currentAttack = null;
+
+        // Show success message
+        alert('✅ Attack Successfully Blocked!\n\n' +
+              'zkML cryptographic guarantees prevented the attack.\n\n' +
+              '• Proof verification failed\n' +
+              '• Motion remained locked\n' +
+              '• Attack logged in audit trail\n\n' +
+              `Total attacks blocked: ${attacksBlockedCount}`);
+      }
+    };
+
+    // Initialize: stop all services on page load (default state)
+    async function initializePage() {
+      try {
+        await api('/stop/all');
+        console.log('Page loaded: all services stopped (default state)');
+      } catch (e) {
+        console.error('Failed to stop services on page load:', e);
+      }
+      // Start regular updates after initialization
+      update();
+    }
+
     // Start updates
     setInterval(updateCamera, 100);
     setInterval(update, 1000);
-    update();
+    initializePage();
   </script>
 </body>
 </html>

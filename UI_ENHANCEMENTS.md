@@ -4,6 +4,17 @@
 
 Access at: **http://localhost:9200/demo.html**
 
+## Recent Bug Fixes (October 2025)
+
+### Critical Fixes Applied
+1. **Removed FPS Counter** - Eliminated distracting frame rate display from camera feed
+2. **Fixed Verification Display** - Step 3 now properly shows verified state with countdown (was broken due to disconnected data sources)
+3. **Fixed Motion Badge** - Now correctly shows "MOTION ALLOWED" with 10-second countdown
+4. **Fixed Snapshot Display** - Verified proof snapshots now appear in proof explorer
+5. **Auto-Stop Services** - Page loads with all services stopped by default (consistent UI state)
+
+**Technical Solution**: Implemented client-side event merging pattern that combines live inference events (`/api/last_event`) with verified proofs (`/api/verified_proofs`) using `verified_until` timestamp as matching key. See `CLAUDE.md` for detailed technical documentation.
+
 ## What's New (All Real Data!)
 
 ### 1. **Live Metrics Dashboard** 📊
