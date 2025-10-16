@@ -187,8 +187,17 @@ app.get('/api/snapshot/:proofId.png', (req, res) => {
   }
 });
 
-// Static frontend (mounted last)
-app.use('/', express.static(path.join(__dirname, 'public')));
+// Static frontend (mounted last) - disable caching for HTML files
+app.use('/', express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      // Disable caching for HTML files to always serve latest version
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
 // Verifier
 app.post('/start/verifier', (req, res) => {
@@ -528,6 +537,117 @@ app.get('/api/windows_camera_instructions', (req, res) => {
     scriptPath: '\\\\wsl$\\Ubuntu\\home\\hshadab\\robotics\\Start-Camera.ps1'
   };
   res.json(instructions);
+});
+
+// Tampered Model Demo API
+// Try multiple possible model locations
+function findModelPath() {
+  const possiblePaths = [
+    path.join(process.env.HOME || '', '.cache/zkml_guard/models/mobilenetv2-7.onnx'),
+    path.join(__dirname, '../onnx-verifier/models/mobilenetv2-12.onnx'),
+    path.join(__dirname, '../../tools/onnx-verifier/models/mobilenetv2-12.onnx'),
+  ];
+
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      console.log(`[model] Found model at: ${p}`);
+      return p;
+    }
+  }
+
+  console.log('[model] No model found in any location');
+  return null;
+}
+
+// These are no longer used at the module level since we call findModelPath() at runtime
+// Kept for backward compatibility in case any code references them
+const MODEL_DIR = path.join(process.env.HOME || '', '.cache/zkml_guard/models');
+const ORIGINAL_MODEL = path.join(MODEL_DIR, 'mobilenetv2-7.onnx');
+const TAMPERED_MODEL = ORIGINAL_MODEL + '.tampered';
+const BACKUP_MODEL = ORIGINAL_MODEL + '.original';
+
+app.post('/api/flip_model', (req, res) => {
+  try {
+    // Re-check model path at runtime (in case it was downloaded after server started)
+    const modelPath = findModelPath();
+    if (!modelPath) {
+      return res.json({ ok: false, error: 'Original model not found. Start the guard first to download it.' });
+    }
+
+    const backupPath = modelPath + '.original';
+    const tamperedPath = modelPath + '.tampered';
+
+    // Check if we already have a backup (meaning we've already flipped)
+    if (fs.existsSync(backupPath)) {
+      return res.json({ ok: false, error: 'Model already tampered. Restore first.' });
+    }
+
+    // Create tampered model if it doesn't exist
+    if (!fs.existsSync(tamperedPath)) {
+      console.log('[flip_model] Creating tampered model...');
+      // Copy original and modify a few bytes to create hash mismatch
+      const originalData = fs.readFileSync(modelPath);
+      const tamperedData = Buffer.from(originalData);
+
+      // Flip some bytes in the middle to create a different hash but keep structure valid
+      // This simulates a model substitution attack
+      const flipPos = Math.floor(tamperedData.length / 2);
+      tamperedData[flipPos] ^= 0xFF;
+      tamperedData[flipPos + 1] ^= 0xFF;
+      tamperedData[flipPos + 2] ^= 0xFF;
+
+      fs.writeFileSync(tamperedPath, tamperedData);
+      console.log('[flip_model] Tampered model created');
+    }
+
+    // Backup original and replace with tampered
+    fs.copyFileSync(modelPath, backupPath);
+    fs.copyFileSync(tamperedPath, modelPath);
+
+    console.log('[flip_model] Model swapped to tampered version');
+
+    res.json({
+      ok: true,
+      message: 'Model swapped to tampered version. Next proof will fail due to hash mismatch.',
+      originalHash: require('crypto').createHash('sha256').update(fs.readFileSync(backupPath)).digest('hex').substring(0, 8),
+      tamperedHash: require('crypto').createHash('sha256').update(fs.readFileSync(modelPath)).digest('hex').substring(0, 8)
+    });
+  } catch (e) {
+    console.error('[flip_model] Error:', e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post('/api/restore_model', (req, res) => {
+  try {
+    // Re-check model path at runtime
+    const modelPath = findModelPath();
+    if (!modelPath) {
+      return res.json({ ok: false, error: 'Model not found.' });
+    }
+
+    const backupPath = modelPath + '.original';
+
+    // Check if backup exists
+    if (!fs.existsSync(backupPath)) {
+      return res.json({ ok: false, error: 'No backup found. Model is already in original state.' });
+    }
+
+    // Restore original from backup
+    fs.copyFileSync(backupPath, modelPath);
+    fs.unlinkSync(backupPath);
+
+    console.log('[restore_model] Model restored to original version');
+
+    res.json({
+      ok: true,
+      message: 'Model restored to original version. Next proof should succeed.',
+      restoredHash: require('crypto').createHash('sha256').update(fs.readFileSync(modelPath)).digest('hex').substring(0, 8)
+    });
+  } catch (e) {
+    console.error('[restore_model] Error:', e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 // No background proxy required; CLI-based polling is used

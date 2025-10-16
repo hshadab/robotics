@@ -111,7 +111,7 @@ class ZkmlGuardNode(Node):
         self.declare_parameter('inference_period_ms', 500)
         self.declare_parameter('proof_timeout_ms', 5000)
         self.declare_parameter('prove_on', 'rising_edge')  # 'rising_edge' or 'every_pass'
-        self.declare_parameter('unlock_hold_ms', 1200)
+        self.declare_parameter('unlock_hold_ms', 3000)
         self.declare_parameter('reprove_on_label_change', True)
         self.declare_parameter('verifier_mode', 'cli')  # 'cli' or 'http'
         self.declare_parameter('verifier_url', '')      # e.g., http://localhost:9100/verify
@@ -148,9 +148,11 @@ class ZkmlGuardNode(Node):
         except Exception as e:
             self.get_logger().warn(f'Failed to fetch ONNX model: {e}')
             # Fallback to consolidated local model if present
-            alt_model = '/home/hshadab/zkml_twist_mux_ws/tools/onnx-verifier/models/tiny_mobilenet.onnx'
+            workspace_root = os.path.expanduser('~/robotics')
+            alt_model = os.path.join(workspace_root, 'tools/onnx-verifier/models/mobilenetv2-12.onnx')
             if os.path.exists(alt_model):
                 self.model_path = alt_model
+                self.get_logger().info(f'Using local model: {alt_model}')
         try:
             ensure_cached(self.labels_path, IMAGENET_LABELS_URL)
         except Exception as e:
@@ -186,6 +188,9 @@ class ZkmlGuardNode(Node):
             raise
 
         self.model_sha256 = sha256_file(self.model_path) if os.path.exists(self.model_path) else ''
+        # Store the ORIGINAL model hash for tampering detection
+        self.original_model_sha256 = self.model_sha256
+        self.get_logger().info(f'Model hash registered: {self.original_model_sha256[:16]}...')
 
         # ROS I/O
         self.image_sub = self.create_subscription(Image, self.camera_topic, self.image_cb, qos)
@@ -199,6 +204,8 @@ class ZkmlGuardNode(Node):
         self.last_label_id: Optional[int] = None
         self.verified_until: float = 0.0
         self.verified_label_id: Optional[int] = None
+        self.proof_in_progress: bool = False  # Track if proof is currently generating
+        self.proving_label_id: Optional[int] = None  # Track which label we're proving
 
         self.create_timer(self.infer_period, self.tick)
         self.get_logger().info('zkml_guard ready: gating /cmd_vel via /zkml/stop')
@@ -285,7 +292,8 @@ class ZkmlGuardNode(Node):
         rising_edge = predicate_met and not self.last_predicate_met
         label_changed = (self.last_label_id is not None and res.top1_id != self.last_label_id)
         expired = (time.time() > self.verified_until)
-        if self.require_proof and predicate_met and npy_bytes is not None:
+        # IMPORTANT: Don't start a new proof if one is already in progress
+        if self.require_proof and predicate_met and npy_bytes is not None and not self.proof_in_progress:
             if self.prove_on.lower() == 'every_pass':
                 should_prove = True
             else:
@@ -293,37 +301,69 @@ class ZkmlGuardNode(Node):
                     should_prove = True
 
         if should_prove:
-            # Invoke verifier (HTTP or CLI)
-            try:
-                if self.verifier_mode.lower() == 'http' and self.verifier_url:
-                    pr = self._run_http_proof(self.model_path, inp, self.proof_timeout)
-                else:
-                    pr = run_proof(
-                        model_path=self.model_path,
-                        input_npy=npy_bytes.getvalue(),
-                        threshold=self.threshold,
-                        label_id=label_for_cmd,
-                        prove_cmd_template=self.prove_cmd_template,
-                        timeout_sec=self.proof_timeout,
-                    )
-                proof_verified = pr.proof_verified
-                proof_ms = pr.proof_ms
-                proof_id = pr.proof_id
-                prove_cmd = pr.cmd
-                if proof_verified and label_for_cmd is not None:
-                    self.verified_label_id = int(label_for_cmd)
-                    self.verified_until = time.time() + max(0.0, self.unlock_hold)
-            except Exception as e:
-                self.get_logger().warn(f'Proof invocation failed: {e}')
+            # Mark proof as in progress to prevent concurrent proof attempts
+            self.proof_in_progress = True
+            self.proving_label_id = label_for_cmd  # Lock in the label we're proving
+
+            # TAMPERING DETECTION: Check if model has been modified
+            current_hash = sha256_file(self.model_path) if os.path.exists(self.model_path) else ''
+            if current_hash != self.original_model_sha256:
+                self.get_logger().error(f'MODEL TAMPERING DETECTED! Expected: {self.original_model_sha256[:16]}... | Actual: {current_hash[:16]}...')
+                self.get_logger().error('Proof generation BLOCKED - model hash mismatch')
                 proof_verified = False
+                proof_ms = None
+                proof_id = 'BLOCKED_TAMPERED_MODEL'
+                self.proof_in_progress = False
+                self.proving_label_id = None
+            else:
+                self.get_logger().info(f'Starting proof generation for label "{res.top1_label}" (ID: {label_for_cmd}, confidence: {res.top1_score:.1%})')
+                # Invoke verifier (HTTP or CLI)
+                try:
+                    if self.verifier_mode.lower() == 'http' and self.verifier_url:
+                        pr = self._run_http_proof(self.model_path, inp, self.proof_timeout)
+                    else:
+                        pr = run_proof(
+                            model_path=self.model_path,
+                            input_npy=npy_bytes.getvalue(),
+                            threshold=self.threshold,
+                            label_id=label_for_cmd,
+                            prove_cmd_template=self.prove_cmd_template,
+                            timeout_sec=self.proof_timeout,
+                        )
+                    proof_verified = pr.proof_verified
+                    proof_ms = pr.proof_ms
+                    proof_id = pr.proof_id
+                    prove_cmd = pr.cmd
+                    if proof_verified and label_for_cmd is not None:
+                        self.verified_label_id = int(label_for_cmd)
+                        self.verified_until = time.time() + max(0.0, self.unlock_hold)
+                        self.get_logger().info(f'Proof verified successfully in {proof_ms}ms')
+                    else:
+                        self.get_logger().warn(f'Proof verification failed')
+                except Exception as e:
+                    self.get_logger().warn(f'Proof invocation failed: {e}')
+                    proof_verified = False
+                finally:
+                    # Always clear the in-progress flag when done (success or failure)
+                    self.proof_in_progress = False
+                    self.proving_label_id = None
 
         # Gate motion
         # Allow motion when:
         # - predicate is met, and
         #   - no proof required, or
-        #   - we have a recent verified proof for the current label and it hasn't expired.
+        #   - we have a recent verified proof for the current label and it hasn't expired, or
+        #   - a proof is currently being generated (ignore current camera state until proof completes)
         allow_motion = False
-        if predicate_met:
+
+        # IMPORTANT: If proof is in progress, DON'T re-evaluate predicate - just wait for proof to complete
+        if self.proof_in_progress:
+            # Proof is actively generating - ignore current inference results
+            # Keep allowing motion (or keep blocking) based on previous state
+            # This prevents cancelling proofs due to confidence fluctuations
+            allow_motion = False  # Keep robot stopped while proof generates
+            self.get_logger().debug(f'Proof in progress for label ID {self.proving_label_id}, ignoring current detection')
+        elif predicate_met:
             if not self.require_proof:
                 allow_motion = True
             else:
@@ -375,12 +415,18 @@ class ZkmlGuardNode(Node):
     def _run_http_proof(self, model_path: str, preprocessed: np.ndarray, timeout_sec: float):
         from .jolt import ProofResult
         url = self.verifier_url
-        flat = preprocessed.flatten().astype(float).tolist()
+        # IMPORTANT: Verifier expects testInputs to be array of FLATTENED arrays
+        # preprocessed shape is [1, 3, 224, 224] = 150528 elements
+        # Flatten to 1D array, then wrap in outer array for testInputs format: [[150528 elements]]
+        # The verifier will reconstruct the shape based on the model's expected input shape
+        flat_input = preprocessed.flatten().astype(float).tolist()  # Flatten to 1D
+        test_inputs = [flat_input]  # Wrap in array: [[150528 floats]]
+
         files = {
             'model': (os.path.basename(model_path), open(model_path, 'rb'), 'application/octet-stream')
         }
         data = {
-            'testInputs': json.dumps([flat])
+            'testInputs': json.dumps(test_inputs)  # Array of test cases (each case is a flat array)
         }
         try:
             resp = requests.post(url, files=files, data=data, timeout=timeout_sec)
@@ -396,11 +442,24 @@ class ZkmlGuardNode(Node):
             except Exception:
                 pass
         if resp.status_code != 200:
+            error_msg = f'HTTP {resp.status_code}: {resp.text[:200]}'
+            self.get_logger().error(f'Verifier error: {error_msg}')
             return ProofResult(False, None, None, resp.text, f'status={resp.status_code}', f'POST {url}')
         try:
             js = resp.json()
         except Exception as e:
+            self.get_logger().error(f'Failed to parse verifier response: {e}')
             return ProofResult(False, None, None, resp.text, f'json error: {e}', f'POST {url}')
+
+        # Log the response for debugging
+        success = js.get('success', False)
+        if not success:
+            error = js.get('error', 'Unknown error')
+            self.get_logger().error(f'Verifier returned error: {error}')
+        else:
+            # Log the full response structure for debugging
+            self.get_logger().info(f'Verifier response keys: {list(js.keys())}')
+
         proof_verified = False
         proof_ms = None
         proof_id = None
@@ -412,6 +471,10 @@ class ZkmlGuardNode(Node):
                 perf = pd.get('performance') if isinstance(pd, dict) else None
                 if isinstance(perf, dict):
                     proof_ms = perf.get('proofGenerationMs')
+                # DEBUG: Log what we found
+                self.get_logger().info(f'Found cryptographicProof.verified={cp.get("verified")}, proof_ms={proof_ms}')
+            else:
+                self.get_logger().warn(f'cryptographicProof not found or not a dict. proofData type: {type(pd)}, keys: {pd.keys() if isinstance(pd, dict) else "N/A"}')
             proof_id = js.get('proofHash') or js.get('verificationId')
         return ProofResult(proof_verified, proof_ms, proof_id, resp.text, None, f'POST {url}')
 

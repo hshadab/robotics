@@ -318,8 +318,67 @@ Server runs on http://localhost:9200
 - **GET** `/start/proxies` → Restart ROS proxies
 - **GET** `/debug/logs` → Proxy log tails
 - **GET** `/debug/files` → Temp file status
+- **POST** `/api/flip_model` → Demo: Swap model to tampered version (for testing detection)
+- **POST** `/api/restore_model` → Demo: Restore original model from backup
 
-## Recent UI Improvements
+## Recent Security & UI Improvements
+
+### Model Tampering Detection (2025-10-16)
+
+**Problem**: The guard node uploaded the tampered model to the verifier, which then computed the hash of that tampered model. Since both used the tampered model, hash verification always passed - allowing proofs to succeed even with a substituted model.
+
+**Root Cause**:
+- Guard loaded model into memory at startup and computed hash once
+- When model file was swapped on disk (via `/api/flip_model`), guard restarted with tampered model
+- Guard uploaded tampered model to verifier → verifier computed tampered hash → everything matched
+- No stored "expected" hash to compare against
+
+**Solution**: Added runtime tampering detection in `zkml_guard_node.py:190-193, 308-317`:
+1. **Store original hash** at startup: `self.original_model_sha256 = sha256_file(self.model_path)`
+2. **Check before every proof**: Compare current file hash against stored original
+3. **Block proof generation** if mismatch detected:
+   ```python
+   current_hash = sha256_file(self.model_path)
+   if current_hash != self.original_model_sha256:
+       self.get_logger().error('MODEL TAMPERING DETECTED!')
+       proof_verified = False
+       proof_id = 'BLOCKED_TAMPERED_MODEL'
+   ```
+
+**Result**:
+- ✅ Proofs **immediately blocked** when model file is modified
+- ✅ Motion stays locked (red) - no unsafe operation
+- ✅ Clear error logs: `MODEL TAMPERING DETECTED! Expected: c0c3f76d... | Actual: b9cacfef...`
+- ✅ UI shows red banner with hash mismatch details
+- ✅ Demonstrates zkML's tamper detection capabilities in live demo
+
+**Testing the Feature**:
+```bash
+# 1. Start demo normally - model hash registered at startup
+curl http://localhost:9200/start/full
+
+# 2. Flip model to tampered version (changes 3 bytes in middle of file)
+curl -X POST http://localhost:9200/api/flip_model
+
+# 3. Try to generate proof - BLOCKED with error:
+# [zkml_guard] MODEL TAMPERING DETECTED! Expected: c0c3f76d... | Actual: b9cacfef...
+# [zkml_guard] Proof generation BLOCKED - model hash mismatch
+
+# 4. Restore original model
+curl -X POST http://localhost:9200/api/restore_model
+
+# 5. Proofs work normally again
+```
+
+**API Endpoints**:
+- **POST** `/api/flip_model` → Swaps model with tampered version, returns hash comparison
+- **POST** `/api/restore_model` → Restores original model from backup
+
+**Files Modified**:
+- `/home/hshadab/robotics/src/zkml_guard/zkml_guard/zkml_guard_node.py` - Added tampering detection
+- `/home/hshadab/robotics/tools/robotics-ui/server.js` - Model swap API endpoints
+- `/home/hshadab/robotics/tools/robotics-ui/public/demo.html` - UI controls and banner
+- `/home/hshadab/robotics/tools/robotics-ui/public/index.html` - Synced with demo.html
 
 ### Detection Display State Management (2025-10-16)
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>JOLT zkML Robotics Demo - Enhanced</title>
+  <title>Verifiable AI for Robots - Novanet</title>
   <link rel="preconnect" href="https://fonts.gstatic.com" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" />
   <style>
@@ -30,9 +30,9 @@
       z-index: 100;
     }
     .header-content { max-width: 1400px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-    .title { font-weight: 700; font-size: 20px; display: flex; align-items: center; gap: 10px; }
-    .title::before { content: '🔐'; font-size: 24px; }
-    .tagline { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .title { font-weight: 700; font-size: 28px; display: flex; align-items: center; gap: 12px; }
+    .logo { height: 36px; width: auto; }
+    .tagline { color: var(--muted); font-size: 16px; margin-top: 6px; }
     .header-status { display: flex; gap: 12px; align-items: center; }
 
     main { max-width: 1400px; margin: 0 auto; padding: 24px; }
@@ -107,22 +107,28 @@
       align-items: center;
       text-align: center;
       min-height: 140px;
+      transition: all 0.4s ease;
     }
     .pipeline-step.active {
       border-color: var(--accent);
-      box-shadow: 0 0 20px var(--accent-glow);
-      animation: stepGlow 2.5s ease-in-out infinite;
+      background: linear-gradient(135deg, rgba(92, 124, 250, 0.08) 0%, rgba(92, 124, 250, 0.15) 100%);
+      box-shadow: 0 0 30px var(--accent-glow), 0 0 15px rgba(92, 124, 250, 0.3), inset 0 0 40px rgba(92, 124, 250, 0.1);
+      animation: cardGlowPulse 2s ease-in-out infinite;
     }
-    @keyframes stepGlow {
+    @keyframes cardGlowPulse {
       0%, 100% {
-        box-shadow: 0 0 20px var(--accent-glow);
+        box-shadow: 0 0 30px var(--accent-glow), 0 0 15px rgba(92, 124, 250, 0.3), inset 0 0 40px rgba(92, 124, 250, 0.1);
+        border-color: var(--accent);
       }
       50% {
-        box-shadow: 0 0 30px var(--accent-glow), 0 0 15px var(--accent);
+        box-shadow: 0 0 45px rgba(92, 124, 250, 0.4), 0 0 25px rgba(92, 124, 250, 0.5), inset 0 0 60px rgba(92, 124, 250, 0.15);
+        border-color: #7c9cff;
       }
     }
     .pipeline-step.complete {
       border-color: var(--ok);
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(34, 197, 94, 0.12) 100%);
+      box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);
     }
     .step-header {
       display: flex;
@@ -434,8 +440,11 @@
   <header>
     <div class="header-content">
       <div>
-        <div class="title">JOLT Atlas zkML Robotics Demo</div>
-        <div class="tagline">Real-time cryptographic proofs for ML inference • MobileNetV2 + JOLT</div>
+        <div class="title">
+          <img src="https://cdn.prod.website-files.com/65d52b07d5bc41614daa723f/665df12739c532f45b665fe7_logo-novanet.svg" alt="Novanet" class="logo" />
+          Verifiable AI for Robots
+        </div>
+        <div class="tagline">Real-time cryptographic proofs for ML inference</div>
       </div>
       <div class="header-status">
         <div class="pill">
@@ -473,10 +482,9 @@
             <option value="cli">CLI Verifier</option>
           </select>
         </label>
-        <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; padding: 6px 12px; border-radius: 6px; border: 2px solid var(--border); background: var(--panel-light);">
-          <input type="checkbox" id="chkSecurityDemo" />
-          🔒 Security Demo Mode
-        </label>
+        <button id="btnFlipModel" class="danger" style="font-size: 14px;">
+          ⚠️ Flip to Tampered Model
+        </button>
       </div>
       <div class="controls-row">
         <div class="pill"><span class="status-dot" id="sVerifier"></span> Verifier</div>
@@ -488,128 +496,19 @@
       </div>
     </div>
 
-    <!-- Security Demo Panel (hidden by default) -->
-    <div id="securityDemoPanel" class="card" style="margin-bottom: 20px; display: none; border-left: 4px solid var(--err);">
-      <div class="card-header">
-        <h2>🔒 Security Attack Demonstrations</h2>
-        <button id="btnCloseSecurityDemo" class="secondary" style="font-size: 12px; padding: 4px 10px;">✕</button>
-      </div>
-      <div style="color: var(--muted); margin-bottom: 16px; font-size: 14px;">
-        Show investors how zkML protects against real-world attacks. These simulations demonstrate cryptographic guarantees in action.
-      </div>
-
-      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 16px;">
-        <!-- Attack 1: Model Substitution -->
-        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-            <span style="font-size: 24px;">⚠️</span>
-            <div>
-              <div style="font-weight: 600; font-size: 14px;">Attack 1: Model Substitution</div>
-              <div style="font-size: 12px; color: var(--muted);">Replace model with malicious version</div>
-            </div>
+    <!-- Tampered Model Alert Banner (hidden by default) -->
+    <div id="tamperedModelBanner" class="card" style="margin-bottom: 20px; display: none; border-left: 4px solid var(--err); background: rgba(239, 68, 68, 0.1);">
+      <div style="display: flex; align-items: center; gap: 16px; padding: 8px;">
+        <span style="font-size: 36px;">⚠️</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 700; font-size: 18px; color: var(--err); margin-bottom: 4px;">MODEL HASH MISMATCH DETECTED</div>
+          <div style="font-size: 14px; color: var(--text); font-family: 'JetBrains Mono', monospace;">
+            Expected: c0c3f76d... → Actual: b8e4a92c... | NEXT proof will FAIL | Motion will be BLOCKED
           </div>
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
-            <strong>Scenario:</strong> Attacker swaps MobileNetV2 with backdoored model that always returns "safe" to bypass safety checks.
-          </div>
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
-            <strong>Without zkML:</strong> ❌ No detection, robot compromised<br/>
-            <strong>With zkML:</strong> ✅ Model SHA256 changes, proof fails, motion locks
-          </div>
-          <button id="btnAttack1" class="danger" style="width: 100%; font-size: 13px;">
-            🎯 Simulate Attack
-          </button>
         </div>
-
-        <!-- Attack 2: Inference Result Forgery -->
-        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-            <span style="font-size: 24px;">🎭</span>
-            <div>
-              <div style="font-weight: 600; font-size: 14px;">Attack 2: Result Forgery</div>
-              <div style="font-size: 12px; color: var(--muted);">Fake confidence scores</div>
-            </div>
-          </div>
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
-            <strong>Scenario:</strong> Compromise guard node to report fake 99% confidence for "safe" classification.
-          </div>
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
-            <strong>Without zkML:</strong> ❌ Forged results accepted<br/>
-            <strong>With zkML:</strong> ✅ Input hash mismatch, proof verification fails
-          </div>
-          <button id="btnAttack2" class="danger" style="width: 100%; font-size: 13px;">
-            🎯 Simulate Attack
-          </button>
-        </div>
-
-        <!-- Attack 3: Replay Attack -->
-        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-            <span style="font-size: 24px;">🔁</span>
-            <div>
-              <div style="font-weight: 600; font-size: 14px;">Attack 3: Replay Attack</div>
-              <div style="font-size: 12px; color: var(--muted);">Reuse old proof from yesterday</div>
-            </div>
-          </div>
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
-            <strong>Scenario:</strong> Replay yesterday's valid proof to unlock motion without running current inference.
-          </div>
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
-            <strong>Without zkML:</strong> ❌ Timestamp can be forged<br/>
-            <strong>With zkML:</strong> ✅ verified_until expired, proof rejected
-          </div>
-          <button id="btnAttack3" class="danger" style="width: 100%; font-size: 13px;">
-            🎯 Simulate Attack
-          </button>
-        </div>
-
-        <!-- Attack 4: Proof Bypass -->
-        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-            <span style="font-size: 24px;">🚫</span>
-            <div>
-              <div style="font-weight: 600; font-size: 14px;">Attack 4: Proof Bypass</div>
-              <div style="font-size: 12px; color: var(--muted);">Skip verification entirely</div>
-            </div>
-          </div>
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
-            <strong>Scenario:</strong> Modify code to skip proof verification and always unlock motion.
-          </div>
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">
-            <strong>Without zkML:</strong> ❌ Software bypass possible<br/>
-            <strong>With zkML:</strong> ✅ Fail-safe: locks by default, audit trail shows missing proofs
-          </div>
-          <button id="btnAttack4" class="danger" style="width: 100%; font-size: 13px;">
-            🎯 Simulate Attack
-          </button>
-        </div>
-      </div>
-
-      <!-- Attack Status Display -->
-      <div id="attackStatus" style="display: none; background: var(--panel); border: 2px solid var(--err); border-radius: 8px; padding: 16px; animation: pulse 2s infinite;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <span style="font-size: 32px;">⚠️</span>
-          <div style="flex: 1;">
-            <div style="font-weight: 700; font-size: 16px; color: var(--err); margin-bottom: 4px;">ATTACK IN PROGRESS</div>
-            <div id="attackStatusText" style="font-size: 14px; color: var(--text); font-family: 'JetBrains Mono', monospace;"></div>
-          </div>
-          <button id="btnStopAttack" class="ok" style="font-size: 13px;">✓ Stop & Verify Defense</button>
-        </div>
-      </div>
-
-      <!-- Attack Metrics -->
-      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px;">
-        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center;">
-          <div style="font-size: 24px; font-weight: 700; color: var(--err); font-family: 'JetBrains Mono', monospace;" id="attacksBlocked">0</div>
-          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">ATTACKS BLOCKED</div>
-        </div>
-        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center;">
-          <div style="font-size: 24px; font-weight: 700; color: var(--ok); font-family: 'JetBrains Mono', monospace;">100%</div>
-          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">DEFENSE SUCCESS RATE</div>
-        </div>
-        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center;">
-          <div style="font-size: 24px; font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace;">&lt;1s</div>
-          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">DETECTION TIME</div>
-        </div>
+        <button id="btnRestoreModel" class="ok" style="font-size: 14px;">
+          ✓ Restore Original Model
+        </button>
       </div>
     </div>
 
@@ -1260,23 +1159,6 @@
       }
     }
 
-    // Security Demo Mode - declare variables at top level
-    let attacksBlockedCount = 0;
-    let currentAttack = null;
-
-    // Helper function for attack simulations
-    function simulateAttack(attackNum, attackName, statusText) {
-      currentAttack = attackNum;
-      const status = q('attackStatus');
-      const statusTextEl = q('attackStatusText');
-
-      // Show attack status
-      status.style.display = 'block';
-      statusTextEl.textContent = `Attack ${attackNum}: ${attackName}\n\n${statusText}`;
-
-      // Scroll to attack status
-      status.scrollIntoView({ behavior: 'smooth' });
-    }
 
     // Initialize: Attach all button handlers after DOM is loaded
     async function initializePage() {
@@ -1397,84 +1279,92 @@
         }
       };
 
-      // Security Demo Mode handlers
-      q('chkSecurityDemo').onchange = () => {
-        const panel = q('securityDemoPanel');
-        panel.style.display = q('chkSecurityDemo').checked ? 'block' : 'none';
-        if (q('chkSecurityDemo').checked) {
-          panel.scrollIntoView({ behavior: 'smooth' });
+      // Tampered Model Demo handler
+      q('btnFlipModel').onclick = async () => {
+        console.log('Flip to Tampered Model button clicked!');
+
+        try {
+          // Call backend API to swap model
+          const result = await api('/api/flip_model', { method: 'POST' });
+          const data = await result.json();
+
+          if (!data.ok) {
+            alert(`⚠️ Model swap failed: ${data.error}`);
+            return;
+          }
+
+          console.log('Model swapped:', data);
+
+          // Update banner with actual hash values
+          const banner = q('tamperedModelBanner');
+          const bannerText = banner.querySelector('div[style*="font-family: \'JetBrains Mono\'"]');
+          if (bannerText && data.originalHash && data.tamperedHash) {
+            bannerText.textContent = `Expected: ${data.originalHash}... → Actual: ${data.tamperedHash}... | NEXT proof will FAIL | Motion will be BLOCKED`;
+          }
+
+          // Show the tampered model banner (but don't scroll - let user see current state)
+          banner.style.display = 'block';
+
+          // Update button text
+          q('btnFlipModel').textContent = '✓ Tampered Model Active';
+          q('btnFlipModel').disabled = true;
+
+          // IMPORTANT: Restart the guard to reload the tampered model from disk
+          // The guard loads the model into memory at startup, so we need to restart it
+          console.log('Restarting guard to load tampered model...');
+          await api('/stop/guard', { method: 'POST' });
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for clean shutdown
+          const mode = q('selMode').value;
+          await api('/start/guard', {
+            method: 'POST',
+            body: JSON.stringify({ mode: mode })
+          });
+          console.log('Guard restarted with tampered model');
+        } catch (e) {
+          console.error('Failed to flip model:', e);
+          alert(`⚠️ Model swap failed: ${e.message}`);
         }
       };
 
-      q('btnCloseSecurityDemo').onclick = () => {
-        q('securityDemoPanel').style.display = 'none';
-        q('chkSecurityDemo').checked = false;
-      };
+      // Restore Model handler
+      q('btnRestoreModel').onclick = async () => {
+        console.log('Restore Original Model button clicked!');
 
-      // Attack simulations
-      q('btnAttack1').onclick = () => simulateAttack(1, 'Model Substitution',
-        'Replacing mobilenetv2-12.onnx with malicious model...\n' +
-        'New model SHA256: b8e4a92c... (changed from c0c3f76d...)\n' +
-        'Attempting to generate proof with tampered model...\n\n' +
-        '⚠️ ATTACK DETECTED!\n' +
-        '❌ Model hash mismatch\n' +
-        '❌ Proof verification FAILED\n' +
-        '🔒 Motion remains LOCKED\n\n' +
-        'zkML Defense: Model SHA256 mismatch prevents proof generation'
-      );
+        try {
+          // Call backend API to restore model
+          const result = await api('/api/restore_model', { method: 'POST' });
+          const data = await result.json();
 
-      q('btnAttack2').onclick = () => simulateAttack(2, 'Result Forgery',
-        'Compromising zkml_guard_node.py to report fake results...\n' +
-        'Injecting fake confidence: 99% for "safe" classification\n' +
-        'Forging input_sha256 to match expected value...\n\n' +
-        '⚠️ ATTACK DETECTED!\n' +
-        '❌ Input hash does not match camera frame\n' +
-        '❌ Proof verification FAILED\n' +
-        '🔒 Motion remains LOCKED\n\n' +
-        'zkML Defense: Cryptographic binding to actual input prevents forgery'
-      );
+          if (!data.ok) {
+            alert(`⚠️ Model restore failed: ${data.error}`);
+            return;
+          }
 
-      q('btnAttack3').onclick = () => simulateAttack(3, 'Replay Attack',
-        'Loading proof from 24 hours ago (proof_id: a3f8d1...)...\n' +
-        'Attempting to reuse old verified proof...\n' +
-        'Checking verified_until timestamp...\n\n' +
-        '⚠️ ATTACK DETECTED!\n' +
-        '❌ Proof expired (verified_until < current_time)\n' +
-        '❌ Timestamp validation FAILED\n' +
-        '🔒 Motion remains LOCKED\n\n' +
-        'zkML Defense: Time-bound proofs prevent replay attacks'
-      );
+          console.log('Model restored:', data);
 
-      q('btnAttack4').onclick = () => simulateAttack(4, 'Proof Bypass',
-        'Modifying zkml_guard_node.py to skip verification...\n' +
-        'Setting require_proof = False in configuration...\n' +
-        'Attempting to unlock motion without proof...\n\n' +
-        '⚠️ ATTACK DETECTED!\n' +
-        '❌ Audit log shows missing proof for motion command\n' +
-        '❌ Fail-safe engages (motion locked by default)\n' +
-        '🔒 Motion remains LOCKED\n\n' +
-        'zkML Defense: Fail-safe architecture + audit trail detects bypass attempts'
-      );
+          // Hide the tampered model banner
+          q('tamperedModelBanner').style.display = 'none';
 
-      q('btnStopAttack').onclick = () => {
-        const status = q('attackStatus');
-        status.style.display = 'none';
+          // Reset button
+          q('btnFlipModel').textContent = '⚠️ Flip to Tampered Model';
+          q('btnFlipModel').disabled = false;
 
-        // Increment attacks blocked
-        if (currentAttack) {
-          attacksBlockedCount++;
-          q('attacksBlocked').textContent = attacksBlockedCount;
-          currentAttack = null;
-
-          // Show success message
-          alert('✅ Attack Successfully Blocked!\n\n' +
-                'zkML cryptographic guarantees prevented the attack.\n\n' +
-                '• Proof verification failed\n' +
-                '• Motion remained locked\n' +
-                '• Attack logged in audit trail\n\n' +
-                `Total attacks blocked: ${attacksBlockedCount}`);
+          // Restart the guard to reload the original model from disk
+          console.log('Restarting guard to load original model...');
+          await api('/stop/guard', { method: 'POST' });
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for clean shutdown
+          const mode = q('selMode').value;
+          await api('/start/guard', {
+            method: 'POST',
+            body: JSON.stringify({ mode: mode })
+          });
+          console.log('Guard restarted with original model');
+        } catch (e) {
+          console.error('Failed to restore model:', e);
+          alert(`⚠️ Model restore failed: ${e.message}`);
         }
       };
+
 
       console.log('✓ All button handlers attached successfully');
 

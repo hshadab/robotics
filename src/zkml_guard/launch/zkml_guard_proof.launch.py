@@ -14,13 +14,14 @@ def generate_launch_description():
     # Proof-on defaults
     camera_topic = LaunchConfiguration('camera_topic', default='/image')
     gating_mode = LaunchConfiguration('gating_mode', default='argmax')
-    threshold = LaunchConfiguration('threshold', default='0.6')
+    threshold = LaunchConfiguration('threshold', default='0.40')  # 40% confidence threshold
     target_label = LaunchConfiguration('target_label', default='')
     target_label_id = LaunchConfiguration('target_label_id', default='-1')
     require_proof = LaunchConfiguration('require_proof', default='true')
     prove_on = LaunchConfiguration('prove_on', default='rising_edge')
-    unlock_hold_ms = LaunchConfiguration('unlock_hold_ms', default='1200')
-    reprove_on_label_change = LaunchConfiguration('reprove_on_label_change', default='true')
+    unlock_hold_ms = LaunchConfiguration('unlock_hold_ms', default='10000')  # 10 seconds for demo - gives time to switch objects
+    reprove_on_label_change = LaunchConfiguration('reprove_on_label_change', default='false')  # Changed to false to prevent proof cancellation
+    proof_timeout_ms = LaunchConfiguration('proof_timeout_ms', default='15000')  # Increased from 5000 to 15000ms (15 seconds) for JOLT proofs
 
     return LaunchDescription([
         DeclareLaunchArgument('camera_topic', default_value=camera_topic),
@@ -32,6 +33,7 @@ def generate_launch_description():
         DeclareLaunchArgument('prove_on', default_value=prove_on),
         DeclareLaunchArgument('unlock_hold_ms', default_value=unlock_hold_ms),
         DeclareLaunchArgument('reprove_on_label_change', default_value=reprove_on_label_change),
+        DeclareLaunchArgument('proof_timeout_ms', default_value=proof_timeout_ms),
 
         Node(
             package='twist_mux',
@@ -57,6 +59,7 @@ def generate_launch_description():
                 {'prove_on': prove_on},
                 {'unlock_hold_ms': unlock_hold_ms},
                 {'reprove_on_label_change': reprove_on_label_change},
+                {'proof_timeout_ms': proof_timeout_ms},
             ],
         ),
     ])

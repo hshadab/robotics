@@ -18,7 +18,7 @@ def generate_launch_description():
     target_label_id = LaunchConfiguration('target_label_id', default='-1')
     require_proof = LaunchConfiguration('require_proof', default='true')
     prove_on = LaunchConfiguration('prove_on', default='rising_edge')
-    unlock_hold_ms = LaunchConfiguration('unlock_hold_ms', default='1200')
+    unlock_hold_ms = LaunchConfiguration('unlock_hold_ms', default='3000')
     reprove_on_label_change = LaunchConfiguration('reprove_on_label_change', default='true')
 
     return LaunchDescription([
