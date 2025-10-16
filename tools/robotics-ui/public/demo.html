@@ -730,6 +730,8 @@
   </main>
 
   <script>
+    console.log('✅ JavaScript loaded and executing');
+
     // State
     let frameCount = 0;
     let proofCount = 0;
@@ -738,9 +740,14 @@
     let lastEvent = null;
     let lastFrameTime = Date.now();
 
+    // Initialize seenProofIds to track which proofs we've already counted
+    window.seenProofIds = new Set();
+
     // Helpers
     const q = id => document.getElementById(id);
     const api = (p, opts={}) => fetch(p, { headers: {'Content-Type': 'application/json'}, ...opts });
+
+    console.log('✅ Helper functions defined');
 
     // Update metrics (no-op since metrics section was removed from UI)
     function updateMetrics() {
@@ -754,6 +761,46 @@
 
       q('cameraFeed').src = `/api/frame.png?ts=${now}`;
       frameCount++;
+    }
+
+    // Reset all status lights to off state
+    function resetStatusLights() {
+      // Turn off process status lights
+      ['Verifier', 'Camera', 'Guard', 'Teleop'].forEach(name => {
+        const dot = q(`s${name}`);
+        dot.className = 'status-dot';  // Remove 'on' class
+      });
+    }
+
+    // Reset entire UI to stopped/idle state
+    function resetUIToStopped() {
+      // Clear last event
+      lastEvent = null;
+
+      // Reset pipeline to idle
+      resetPipelineToIdle();
+
+      // Clear detection display
+      q('detectionLabel').textContent = '—';
+      q('detectionConf').textContent = '—';
+
+      // Reset motion badge to idle
+      const badge = q('motionBadge');
+      const badgeIcon = q('motionBadgeIcon');
+      const badgeStatus = q('motionBadgeStatus');
+      const badgeDetails = q('motionBadgeDetails');
+
+      badge.style.borderColor = 'var(--border)';
+      badge.style.backgroundColor = 'transparent';
+      badgeIcon.textContent = '⏸';
+      badgeIcon.style.color = 'var(--muted)';
+      badgeStatus.textContent = 'MOTION IDLE';
+      badgeStatus.style.color = 'var(--muted)';
+      badgeDetails.textContent = '';  // No details for idle state
+      badgeDetails.style.color = 'var(--muted)';
+
+      // Turn off all status lights
+      resetStatusLights();
     }
 
     // Reset pipeline to idle state (when services stopped)
@@ -902,20 +949,13 @@
         return;
       }
 
-      // Clear display during proof generation (when predicate is met but proof hasn't completed yet)
-      // This clears the label when proof starts, and it will reappear after the 2s inference pause
-      const isGeneratingProof = event.predicate_met && !event.proof_ms;
-
-      if (isGeneratingProof) {
-        // Clear during proof generation
-        q('detectionLabel').textContent = '—';
-        q('detectionConf').textContent = '—';
-      } else if (event.top1_label && event.top1_score) {
-        // Show detection when guard is running (regardless of threshold)
+      // ALWAYS show live detection when guard is running and we have valid inference results
+      // The guard publishes fresh detection data every 500ms
+      if (event.top1_label && event.top1_score) {
         q('detectionLabel').textContent = event.top1_label;
         q('detectionConf').textContent = `${(event.top1_score * 100).toFixed(1)}%`;
       } else {
-        // Fallback: clear if no valid detection
+        // No valid detection data available yet
         q('detectionLabel').textContent = '—';
         q('detectionConf').textContent = '—';
       }
@@ -995,34 +1035,22 @@
         // Update badge
         badge.style.borderColor = 'var(--ok)';
         badge.style.backgroundColor = 'rgba(34, 197, 94, 0.1)';
-        badgeIcon.textContent = '✓';
+        badgeIcon.textContent = '';  // No icon
         badgeIcon.style.color = 'var(--ok)';
-        badgeStatus.textContent = 'MOTION ALLOWED';
+        badgeStatus.textContent = `MOTION ALLOWED ${seconds}s`;
         badgeStatus.style.color = 'var(--ok)';
-        badgeDetails.textContent = `Unlocked for ${seconds}s (proof verified)`;
+        badgeDetails.textContent = '';  // No details
         badgeDetails.style.color = 'var(--ok)';
       } else {
-        // MOTION STOPPED - no valid proof or expired
-        let reason = 'Waiting for proof verification';
-
-        if (event.proof_verified === false && event.proof_id) {
-          reason = 'Proof verification failed';
-        } else if (event.proof_verified === true && timeRemaining <= 0) {
-          reason = 'Proof expired';
-        } else if (event.predicate_met && !event.proof_id) {
-          reason = 'Generating proof...';
-        } else if (!event.predicate_met) {
-          reason = 'Confidence below threshold (40%)';
-        }
-
+        // MOTION BLOCKED - no valid proof or expired
         // Update badge
         badge.style.borderColor = 'var(--err)';
         badge.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
-        badgeIcon.textContent = '✗';
+        badgeIcon.textContent = '';  // No icon
         badgeIcon.style.color = 'var(--err)';
-        badgeStatus.textContent = 'MOTION STOPPED';
+        badgeStatus.textContent = 'MOTION BLOCKED';
         badgeStatus.style.color = 'var(--err)';
-        badgeDetails.textContent = reason;
+        badgeDetails.textContent = '';  // No details
         badgeDetails.style.color = 'var(--err)';
       }
     }
@@ -1103,11 +1131,29 @@
         const status = await (await api('/status')).json();
         const guardRunning = status.guard || false;
 
-        // If guard just stopped, clear everything immediately
-        if (!guardRunning && lastEvent) {
-          lastEvent = null;
+        // Update status dots (even when guard is stopped)
+        ['Verifier', 'Camera', 'Guard', 'Teleop'].forEach(name => {
+          const dot = q(`s${name}`);
+          const on = status[name.toLowerCase()];
+          dot.className = on ? 'status-dot on' : 'status-dot';
+        });
+
+        // If guard is not running, reset pipeline to idle state
+        if (!guardRunning) {
+          if (lastEvent) {
+            lastEvent = null;
+          }
           updatePipeline(null, false);
           updateDetection(null, false);
+
+          // Update proxy status and Windows camera even when stopped
+          const proxy = await (await api('/api/proxy_status')).json();
+          const allRunning = proxy.event_proxy?.running && proxy.frame_proxy?.running;
+          q('proxyStatus').className = allRunning ? 'status-dot on' : 'status-dot';
+          q('proxyText').textContent = allRunning ? 'Proxies Online' : 'Proxies Offline';
+
+          checkWindowsCamera().catch(e => console.error('Camera check failed:', e));
+
           // Don't process any events if guard is stopped
           return;
         }
@@ -1116,17 +1162,43 @@
         if (r.status === 200) {
           let event = await r.json();
 
-          // Fetch verified proofs to merge with live event
-          const proofsResp = await api('/api/verified_proofs');
-          const verifiedProofs = await proofsResp.json();
+          // Check if the unlock window has expired - if so, clear stale proof state
+          const now = Date.now() / 1000;
+          const verifiedUntil = event.verified_until || 0;
+          const unlockExpired = verifiedUntil > 0 && verifiedUntil < now;
 
-          // If we have a verified proof that matches the current verified_until window, merge it
-          if (verifiedProofs && verifiedProofs.length > 0 && event.verified_until) {
-            const mostRecentProof = verifiedProofs[0]; // Most recent verified proof
-            // Check if this verified proof is for the current unlock window
-            if (mostRecentProof.verified_until === event.verified_until && mostRecentProof.proof_verified === true) {
-              // Merge verified proof data into the event
-              event = {...event, ...mostRecentProof};
+          if (unlockExpired) {
+            // Countdown expired - clear proof state to reset for next cycle
+            // Keep detection data (top1_label, top1_score) but clear proof metadata
+            event = {
+              ts: event.ts,
+              top1_label: event.top1_label,
+              top1_score: event.top1_score,
+              model_path: event.model_path,
+              // Clear all proof-related fields
+              proof_verified: undefined,
+              proof_id: undefined,
+              proof_ms: undefined,
+              verified_until: undefined,
+              predicate_met: undefined,
+              input_sha256: undefined,
+              model_sha256: undefined
+            };
+          }
+
+          // Fetch verified proofs to merge with live event (only if unlock hasn't expired)
+          if (!unlockExpired) {
+            const proofsResp = await api('/api/verified_proofs');
+            const verifiedProofs = await proofsResp.json();
+
+            // If we have a verified proof that matches the current verified_until window, merge it
+            if (verifiedProofs && verifiedProofs.length > 0 && event.verified_until) {
+              const mostRecentProof = verifiedProofs[0]; // Most recent verified proof
+              // Check if this verified proof is for the current unlock window
+              if (mostRecentProof.verified_until === event.verified_until && mostRecentProof.proof_verified === true) {
+                // Merge verified proof data into the event
+                event = {...event, ...mostRecentProof};
+              }
             }
           }
 
@@ -1137,7 +1209,13 @@
           const hasNewProof = event.proof_id && event.proof_verified === true &&
                               event.proof_id !== lastEvent?.proof_id;
 
-          if (event.ts !== lastEvent?.ts || event.proof_verified !== lastEvent?.proof_verified || event.proof_id !== lastEvent?.proof_id) {
+          // Always update if event changed OR if guard just started (lastEvent was null)
+          const shouldUpdateFull = !lastEvent ||
+                                   event.ts !== lastEvent?.ts ||
+                                   event.proof_verified !== lastEvent?.proof_verified ||
+                                   event.proof_id !== lastEvent?.proof_id;
+
+          if (shouldUpdateFull) {
             lastEvent = event;
             updatePipeline(event, guardRunning);
             updateDetection(event, guardRunning);
@@ -1150,11 +1228,11 @@
               await updateVerifiedProofsList();
               window.lastProofListUpdate = Date.now();
             }
-          } else if (lastEvent) {
+          } else {
             // Still update motion gating, pipeline, and detection even if event hasn't changed (for countdown)
-            updateMotionGating(lastEvent);
-            updatePipeline(lastEvent, guardRunning);
-            updateDetection(lastEvent, guardRunning);
+            updateMotionGating(event);
+            updatePipeline(event, guardRunning);
+            updateDetection(event, guardRunning);
           }
         }
 
@@ -1166,12 +1244,7 @@
           window.lastProofListUpdate = Date.now();
         }
 
-        // Update status dots (reuse status from above)
-        ['Verifier', 'Camera', 'Guard', 'Teleop'].forEach(name => {
-          const dot = q(`s${name}`);
-          const on = status[name.toLowerCase()];
-          dot.className = on ? 'status-dot on' : 'status-dot';
-        });
+        // Status dots already updated at the top of this function (lines 1155-1160)
 
         // Proxy status
         const proxy = await (await api('/api/proxy_status')).json();
@@ -1179,169 +1252,19 @@
         q('proxyStatus').className = allRunning ? 'status-dot on' : 'status-dot';
         q('proxyText').textContent = allRunning ? 'Proxies Online' : 'Proxies Offline';
 
-        // Check Windows camera
-        await checkWindowsCamera();
+        // Check Windows camera (non-blocking - don't let it stop the update loop)
+        checkWindowsCamera().catch(e => console.error('Camera check failed:', e));
 
       } catch (e) {
         console.error('Update failed:', e);
       }
     }
 
-    // Controls
-    q('btnStartFull').onclick = async () => {
-      const mode = q('selMode').value;
-      const proofOn = q('chkProofOn').checked;
-      // burger=0 uses real camera, burger=1 uses test pattern
-
-      // Toggle button states
-      q('btnStartFull').classList.add('active');
-      q('btnStopAll').classList.remove('active');
-
-      await api(`/start/full?mode=${mode}&burger=0&record=0`);
-    };
-
-    q('btnStopAll').onclick = async () => {
-      // Toggle button states
-      q('btnStopAll').classList.add('active');
-      q('btnStartFull').classList.remove('active');
-
-      await api('/stop/all');
-    };
-
-    q('btnDownloadProof').onclick = () => {
-      if (!lastEvent) return;
-      const blob = new Blob([JSON.stringify(lastEvent, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `proof-${Date.now()}.json`;
-      a.click();
-    };
-
-    q('btnClearProofs').onclick = async () => {
-      try {
-        await api('/api/clear_verified_proofs', { method: 'POST' });
-        const list = q('verifiedProofsList');
-        list.innerHTML = '<div style="color: var(--muted); text-align: center; padding: 20px;">No verified proofs yet</div>';
-      } catch (e) {
-        console.error('Failed to clear verified proofs:', e);
-      }
-    };
-
-    // Windows camera help button
-    q('btnWinCamHelp').onclick = async () => {
-      const running = await checkWindowsCamera();
-      const instructions = q('winCamInstructions');
-
-      if (running) {
-        alert('✓ Windows camera is already running!\n\nYour webcam should be active and serving frames.');
-      } else {
-        instructions.style.display = 'block';
-        instructions.scrollIntoView({ behavior: 'smooth' });
-      }
-    };
-
-    // Close instructions
-    q('btnCloseInstructions').onclick = () => {
-      q('winCamInstructions').style.display = 'none';
-    };
-
-    // Copy buttons
-    q('btnCopyPath').onclick = () => {
-      navigator.clipboard.writeText('cd \\\\wsl$\\Ubuntu\\home\\hshadab\\robotics');
-      q('btnCopyPath').textContent = '✓ Copied!';
-      setTimeout(() => q('btnCopyPath').textContent = '📋 Copy Path', 2000);
-    };
-
-    q('btnCopyCmd').onclick = () => {
-      navigator.clipboard.writeText('python simple_windows_camera.py 1');
-      q('btnCopyCmd').textContent = '✓ Copied!';
-      setTimeout(() => q('btnCopyCmd').textContent = '📋 Copy Command', 2000);
-    };
-
-    // Refresh camera status
-    q('btnRefreshCam').onclick = async () => {
-      const running = await checkWindowsCamera();
-      if (running) {
-        alert('✓ Camera detected!\n\nThe Windows camera HTTP server is now running.');
-        q('winCamInstructions').style.display = 'none';
-      } else {
-        alert('✗ Camera not detected\n\nMake sure you\'ve started the camera script in PowerShell.');
-      }
-    };
-
-    // Use test pattern instead
-    q('btnTestWithPattern').onclick = async () => {
-      if (confirm('Switch to test pattern mode?\n\nThis will use an animated test pattern instead of your camera.')) {
-        await api('/stop/all');
-        await api('/start/full?mode=http&burger=1&record=0');
-        q('winCamInstructions').style.display = 'none';
-        alert('✓ Started with test pattern\n\nYou should see the animated burger pattern in the camera feed.');
-      }
-    };
-
-    // Security Demo Mode
+    // Security Demo Mode - declare variables at top level
     let attacksBlockedCount = 0;
     let currentAttack = null;
 
-    q('chkSecurityDemo').onchange = () => {
-      const panel = q('securityDemoPanel');
-      panel.style.display = q('chkSecurityDemo').checked ? 'block' : 'none';
-      if (q('chkSecurityDemo').checked) {
-        panel.scrollIntoView({ behavior: 'smooth' });
-      }
-    };
-
-    q('btnCloseSecurityDemo').onclick = () => {
-      q('securityDemoPanel').style.display = 'none';
-      q('chkSecurityDemo').checked = false;
-    };
-
-    // Attack simulations
-    q('btnAttack1').onclick = () => simulateAttack(1, 'Model Substitution',
-      'Replacing mobilenetv2-12.onnx with malicious model...\n' +
-      'New model SHA256: b8e4a92c... (changed from c0c3f76d...)\n' +
-      'Attempting to generate proof with tampered model...\n\n' +
-      '⚠️ ATTACK DETECTED!\n' +
-      '❌ Model hash mismatch\n' +
-      '❌ Proof verification FAILED\n' +
-      '🔒 Motion remains LOCKED\n\n' +
-      'zkML Defense: Model SHA256 mismatch prevents proof generation'
-    );
-
-    q('btnAttack2').onclick = () => simulateAttack(2, 'Result Forgery',
-      'Compromising zkml_guard_node.py to report fake results...\n' +
-      'Injecting fake confidence: 99% for "safe" classification\n' +
-      'Forging input_sha256 to match expected value...\n\n' +
-      '⚠️ ATTACK DETECTED!\n' +
-      '❌ Input hash does not match camera frame\n' +
-      '❌ Proof verification FAILED\n' +
-      '🔒 Motion remains LOCKED\n\n' +
-      'zkML Defense: Cryptographic binding to actual input prevents forgery'
-    );
-
-    q('btnAttack3').onclick = () => simulateAttack(3, 'Replay Attack',
-      'Loading proof from 24 hours ago (proof_id: a3f8d1...)...\n' +
-      'Attempting to reuse old verified proof...\n' +
-      'Checking verified_until timestamp...\n\n' +
-      '⚠️ ATTACK DETECTED!\n' +
-      '❌ Proof expired (verified_until < current_time)\n' +
-      '❌ Timestamp validation FAILED\n' +
-      '🔒 Motion remains LOCKED\n\n' +
-      'zkML Defense: Time-bound proofs prevent replay attacks'
-    );
-
-    q('btnAttack4').onclick = () => simulateAttack(4, 'Proof Bypass',
-      'Modifying zkml_guard_node.py to skip verification...\n' +
-      'Setting require_proof = False in configuration...\n' +
-      'Attempting to unlock motion without proof...\n\n' +
-      '⚠️ ATTACK DETECTED!\n' +
-      '❌ Audit log shows missing proof for motion command\n' +
-      '❌ Fail-safe engages (motion locked by default)\n' +
-      '🔒 Motion remains LOCKED\n\n' +
-      'zkML Defense: Fail-safe architecture + audit trail detects bypass attempts'
-    );
-
+    // Helper function for attack simulations
     function simulateAttack(attackNum, attackName, statusText) {
       currentAttack = attackNum;
       const status = q('attackStatus');
@@ -1355,42 +1278,230 @@
       status.scrollIntoView({ behavior: 'smooth' });
     }
 
-    q('btnStopAttack').onclick = () => {
-      const status = q('attackStatus');
-      status.style.display = 'none';
-
-      // Increment attacks blocked
-      if (currentAttack) {
-        attacksBlockedCount++;
-        q('attacksBlocked').textContent = attacksBlockedCount;
-        currentAttack = null;
-
-        // Show success message
-        alert('✅ Attack Successfully Blocked!\n\n' +
-              'zkML cryptographic guarantees prevented the attack.\n\n' +
-              '• Proof verification failed\n' +
-              '• Motion remained locked\n' +
-              '• Attack logged in audit trail\n\n' +
-              `Total attacks blocked: ${attacksBlockedCount}`);
-      }
-    };
-
-    // Initialize: stop all services on page load (default state)
+    // Initialize: Attach all button handlers after DOM is loaded
     async function initializePage() {
-      try {
-        await api('/stop/all');
-        console.log('Page loaded: all services stopped (default state)');
-      } catch (e) {
-        console.error('Failed to stop services on page load:', e);
+      console.log('Page loaded: Attaching button handlers...');
+
+      // Immediately set initial state to stopped/idle
+      console.log('Setting initial UI state to stopped...');
+      resetUIToStopped();
+
+      // Controls
+      q('btnStartFull').onclick = async () => {
+        console.log('Start button clicked!');
+        const mode = q('selMode').value;
+        const proofOn = q('chkProofOn').checked;
+        // burger=0 uses real camera, burger=1 uses test pattern
+
+        // Toggle button states
+        q('btnStartFull').classList.add('active');
+        q('btnStopAll').classList.remove('active');
+
+        console.log('Calling /start/full API...');
+        try {
+          const result = await api(`/start/full?mode=${mode}&burger=0&record=0`);
+          console.log('Start result:', await result.json());
+        } catch (e) {
+          console.error('Start failed:', e);
+        }
+      };
+
+      q('btnStopAll').onclick = async () => {
+        console.log('Stop button clicked!');
+
+        // Toggle button states
+        q('btnStopAll').classList.add('active');
+        q('btnStartFull').classList.remove('active');
+
+        // Immediately reset UI to stopped state (don't wait for API or update loop)
+        resetUIToStopped();
+
+        // Call API to stop all services
+        try {
+          await api('/stop/all');
+          console.log('All services stopped');
+        } catch (e) {
+          console.error('Stop failed:', e);
+        }
+      };
+
+      q('btnDownloadProof').onclick = () => {
+        if (!lastEvent) return;
+        const blob = new Blob([JSON.stringify(lastEvent, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `proof-${Date.now()}.json`;
+        a.click();
+      };
+
+      q('btnClearProofs').onclick = async () => {
+        try {
+          await api('/api/clear_verified_proofs', { method: 'POST' });
+          const list = q('verifiedProofsList');
+          list.innerHTML = '<div style="color: var(--muted); text-align: center; padding: 20px;">No verified proofs yet</div>';
+        } catch (e) {
+          console.error('Failed to clear verified proofs:', e);
+        }
+      };
+
+      // Windows camera help button
+      q('btnWinCamHelp').onclick = async () => {
+        const running = await checkWindowsCamera();
+        const instructions = q('winCamInstructions');
+
+        if (running) {
+          alert('✓ Windows camera is already running!\n\nYour webcam should be active and serving frames.');
+        } else {
+          instructions.style.display = 'block';
+          instructions.scrollIntoView({ behavior: 'smooth' });
+        }
+      };
+
+      // Close instructions
+      q('btnCloseInstructions').onclick = () => {
+        q('winCamInstructions').style.display = 'none';
+      };
+
+      // Copy buttons
+      q('btnCopyPath').onclick = () => {
+        navigator.clipboard.writeText('cd \\\\wsl$\\Ubuntu\\home\\hshadab\\robotics');
+        q('btnCopyPath').textContent = '✓ Copied!';
+        setTimeout(() => q('btnCopyPath').textContent = '📋 Copy Path', 2000);
+      };
+
+      q('btnCopyCmd').onclick = () => {
+        navigator.clipboard.writeText('python simple_windows_camera.py 1');
+        q('btnCopyCmd').textContent = '✓ Copied!';
+        setTimeout(() => q('btnCopyCmd').textContent = '📋 Copy Command', 2000);
+      };
+
+      // Refresh camera status
+      q('btnRefreshCam').onclick = async () => {
+        const running = await checkWindowsCamera();
+        if (running) {
+          alert('✓ Camera detected!\n\nThe Windows camera HTTP server is now running.');
+          q('winCamInstructions').style.display = 'none';
+        } else {
+          alert('✗ Camera not detected\n\nMake sure you\'ve started the camera script in PowerShell.');
+        }
+      };
+
+      // Use test pattern instead
+      q('btnTestWithPattern').onclick = async () => {
+        if (confirm('Switch to test pattern mode?\n\nThis will use an animated test pattern instead of your camera.')) {
+          await api('/stop/all');
+          await api('/start/full?mode=http&burger=1&record=0');
+          q('winCamInstructions').style.display = 'none';
+          alert('✓ Started with test pattern\n\nYou should see the animated burger pattern in the camera feed.');
+        }
+      };
+
+      // Security Demo Mode handlers
+      q('chkSecurityDemo').onchange = () => {
+        const panel = q('securityDemoPanel');
+        panel.style.display = q('chkSecurityDemo').checked ? 'block' : 'none';
+        if (q('chkSecurityDemo').checked) {
+          panel.scrollIntoView({ behavior: 'smooth' });
+        }
+      };
+
+      q('btnCloseSecurityDemo').onclick = () => {
+        q('securityDemoPanel').style.display = 'none';
+        q('chkSecurityDemo').checked = false;
+      };
+
+      // Attack simulations
+      q('btnAttack1').onclick = () => simulateAttack(1, 'Model Substitution',
+        'Replacing mobilenetv2-12.onnx with malicious model...\n' +
+        'New model SHA256: b8e4a92c... (changed from c0c3f76d...)\n' +
+        'Attempting to generate proof with tampered model...\n\n' +
+        '⚠️ ATTACK DETECTED!\n' +
+        '❌ Model hash mismatch\n' +
+        '❌ Proof verification FAILED\n' +
+        '🔒 Motion remains LOCKED\n\n' +
+        'zkML Defense: Model SHA256 mismatch prevents proof generation'
+      );
+
+      q('btnAttack2').onclick = () => simulateAttack(2, 'Result Forgery',
+        'Compromising zkml_guard_node.py to report fake results...\n' +
+        'Injecting fake confidence: 99% for "safe" classification\n' +
+        'Forging input_sha256 to match expected value...\n\n' +
+        '⚠️ ATTACK DETECTED!\n' +
+        '❌ Input hash does not match camera frame\n' +
+        '❌ Proof verification FAILED\n' +
+        '🔒 Motion remains LOCKED\n\n' +
+        'zkML Defense: Cryptographic binding to actual input prevents forgery'
+      );
+
+      q('btnAttack3').onclick = () => simulateAttack(3, 'Replay Attack',
+        'Loading proof from 24 hours ago (proof_id: a3f8d1...)...\n' +
+        'Attempting to reuse old verified proof...\n' +
+        'Checking verified_until timestamp...\n\n' +
+        '⚠️ ATTACK DETECTED!\n' +
+        '❌ Proof expired (verified_until < current_time)\n' +
+        '❌ Timestamp validation FAILED\n' +
+        '🔒 Motion remains LOCKED\n\n' +
+        'zkML Defense: Time-bound proofs prevent replay attacks'
+      );
+
+      q('btnAttack4').onclick = () => simulateAttack(4, 'Proof Bypass',
+        'Modifying zkml_guard_node.py to skip verification...\n' +
+        'Setting require_proof = False in configuration...\n' +
+        'Attempting to unlock motion without proof...\n\n' +
+        '⚠️ ATTACK DETECTED!\n' +
+        '❌ Audit log shows missing proof for motion command\n' +
+        '❌ Fail-safe engages (motion locked by default)\n' +
+        '🔒 Motion remains LOCKED\n\n' +
+        'zkML Defense: Fail-safe architecture + audit trail detects bypass attempts'
+      );
+
+      q('btnStopAttack').onclick = () => {
+        const status = q('attackStatus');
+        status.style.display = 'none';
+
+        // Increment attacks blocked
+        if (currentAttack) {
+          attacksBlockedCount++;
+          q('attacksBlocked').textContent = attacksBlockedCount;
+          currentAttack = null;
+
+          // Show success message
+          alert('✅ Attack Successfully Blocked!\n\n' +
+                'zkML cryptographic guarantees prevented the attack.\n\n' +
+                '• Proof verification failed\n' +
+                '• Motion remained locked\n' +
+                '• Attack logged in audit trail\n\n' +
+                `Total attacks blocked: ${attacksBlockedCount}`);
+        }
+      };
+
+      console.log('✓ All button handlers attached successfully');
+
+      // Verify Start button exists
+      const btn = q('btnStartFull');
+      if (!btn) {
+        console.error('ERROR: Start button not found! ID: btnStartFull');
+      } else {
+        console.log('✓ Start button found and handler attached');
       }
-      // Start regular updates after initialization
+
+      // Start the update intervals (camera every 100ms, data every 1000ms)
+      setInterval(updateCamera, 100);
+      setInterval(update, 1000);
+
+      // Run initial update immediately
       update();
+
+      console.log('✓ Update loops started');
     }
 
-    // Start updates
-    setInterval(updateCamera, 100);
-    setInterval(update, 1000);
-    initializePage();
+    // Make sure DOM is loaded before initializing
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initializePage);
+    } else {
+      initializePage();
+    }
   </script>
 </body>
 </html>
