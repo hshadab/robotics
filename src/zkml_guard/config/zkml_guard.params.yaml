@@ -2,13 +2,16 @@ zkml_guard:
   ros__parameters:
     # Gating defaults tuned for JOLT Atlas
     gating_mode: argmax
-    threshold: 0.6
+    threshold: 0.40  # Confidence threshold for triggering proof generation
     require_proof: true
+
+    # Inference rate control
+    inference_period_ms: 2000     # Run inference every 2 seconds (slower = more stable)
 
     # Proof cadence optimizations
     prove_on: rising_edge         # or: every_pass
-    unlock_hold_ms: 1200          # keep unlocked briefly after a verify
-    reprove_on_label_change: true # cancel hold if top-1 changes
+    unlock_hold_ms: 3000          # keep unlocked briefly after a verify
+    reprove_on_label_change: true  # Cancel and restart proof if label changes during generation
 
     # ONNX + labels auto-download cache
     # Leave commented to auto-download MobileNetV2 from ONNX Model Zoo

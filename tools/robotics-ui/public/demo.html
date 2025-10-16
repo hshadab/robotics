@@ -288,22 +288,46 @@
     button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px var(--accent-glow); }
     button.secondary { background: var(--panel-light); }
     button.ok {
-      background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
+      background: linear-gradient(135deg, #0f5132 0%, #0a3622 100%);
+      opacity: 0.5;
       position: relative;
+    }
+    button.ok:hover {
+      background: linear-gradient(135deg, #166534 0%, #14532d 100%);
+      opacity: 0.7;
+      transform: translateY(-1px);
     }
     button.ok.active {
       background: linear-gradient(135deg, #22c55e 0%, #4ade80 100%);
+      opacity: 1;
       border: 4px solid #22c55e;
       box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.3);
     }
+    button.ok.active:hover {
+      background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
+      box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.5), 0 6px 16px rgba(34, 197, 94, 0.4);
+      transform: translateY(-2px);
+    }
     button.danger {
-      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+      background: linear-gradient(135deg, #7f1d1d 0%, #5c1010 100%);
+      opacity: 0.5;
       position: relative;
+    }
+    button.danger:hover {
+      background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
+      opacity: 0.7;
+      transform: translateY(-1px);
     }
     button.danger.active {
       background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+      opacity: 1;
       border: 4px solid #ef4444;
       box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3);
+    }
+    button.danger.active:hover {
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+      box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.5), 0 6px 16px rgba(239, 68, 68, 0.4);
+      transform: translateY(-2px);
     }
 
     .pill {
@@ -394,13 +418,15 @@
       gap: 2px;
     }
     .motion-badge-status {
-      font-size: 14px;
+      font-size: 16px;
       line-height: 1;
+      font-weight: 700;
     }
     .motion-badge-details {
-      font-size: 10px;
-      opacity: 0.8;
-      line-height: 1;
+      font-size: 16px;
+      font-weight: 700;
+      opacity: 1;
+      line-height: 1.3;
     }
   </style>
 </head>
@@ -716,20 +742,10 @@
     const q = id => document.getElementById(id);
     const api = (p, opts={}) => fetch(p, { headers: {'Content-Type': 'application/json'}, ...opts });
 
-    // Update metrics
+    // Update metrics (no-op since metrics section was removed from UI)
     function updateMetrics() {
-      q('metricFrames').textContent = frameCount.toLocaleString();
-      q('metricProofs').textContent = proofCount.toLocaleString();
-
-      if (proofCount > 0) {
-        const rate = Math.round((successCount / proofCount) * 100);
-        q('metricSuccess').textContent = `${rate}%`;
-      }
-
-      if (proofTimes.length > 0) {
-        const avg = proofTimes.reduce((a, b) => a + b, 0) / proofTimes.length;
-        q('metricAvgTime').textContent = `${(avg / 1000).toFixed(2)}s`;
-      }
+      // Metrics section was removed from the UI
+      // Keeping function for compatibility but no DOM updates needed
     }
 
     // Update camera feed
@@ -740,45 +756,92 @@
       frameCount++;
     }
 
+    // Reset pipeline to idle state (when services stopped)
+    function resetPipelineToIdle() {
+      // Step 1: Idle
+      q('step1').className = 'pipeline-step';
+      q('step1').querySelector('.step-icon').className = 'step-icon';
+      q('step1').querySelector('.step-icon').textContent = '⏸';
+      q('step1Time').textContent = 'Idle';
+      q('step1Details').textContent = 'Waiting for guard to start...';
+
+      // Step 2: Idle
+      q('step2').className = 'pipeline-step';
+      q('step2').querySelector('.step-icon').className = 'step-icon';
+      q('step2').querySelector('.step-icon').textContent = '⏸';
+      q('step2Time').textContent = 'Idle';
+      q('step2Details').textContent = 'Waiting...';
+
+      // Step 3: Idle
+      q('step3').className = 'pipeline-step';
+      q('step3').querySelector('.step-icon').className = 'step-icon';
+      q('step3').querySelector('.step-icon').textContent = '⏸';
+      q('step3Time').textContent = 'Idle';
+      q('step3Details').textContent = 'Waiting...';
+    }
+
     // Update proof pipeline visualization
-    function updatePipeline(event) {
-      if (!event) return;
+    function updatePipeline(event, guardRunning = false) {
+      if (!event) {
+        // No event - show all steps as idle
+        resetPipelineToIdle();
+        return;
+      }
 
-      // Step 1: Inference
-      q('step1').className = 'pipeline-step complete';
-      q('step1').querySelector('.step-icon').className = 'step-icon complete';
-      q('step1').querySelector('.step-icon').textContent = '✓';
-      q('step1Time').textContent = 'Complete';
-      q('step1Details').textContent = `Model: ${event.model_path?.split('/').pop() || 'Unknown'}`;
+      // Step 1: Inference - only show as complete if guard is actually running and processing
+      if (guardRunning && event.ts) {
+        q('step1').className = 'pipeline-step complete';
+        q('step1').querySelector('.step-icon').className = 'step-icon complete';
+        q('step1').querySelector('.step-icon').textContent = '✓';
+        q('step1Time').textContent = 'Complete';
+        q('step1Details').textContent = `Model: ${event.model_path?.split('/').pop() || 'Unknown'}`;
+      } else {
+        // Guard stopped or no active inference
+        q('step1').className = 'pipeline-step';
+        q('step1').querySelector('.step-icon').className = 'step-icon';
+        q('step1').querySelector('.step-icon').textContent = '⏸';
+        q('step1Time').textContent = 'Idle';
+        q('step1Details').textContent = 'Waiting for guard to start...';
+      }
 
-      // Step 2: Proof Generation
-      if (event.proof_ms) {
+      // Step 2: Proof Generation - only active if guard is running AND threshold met
+      if (guardRunning && event.proof_ms) {
+        // Proof completed
         q('step2').className = 'pipeline-step complete';
         q('step2').querySelector('.step-icon').className = 'step-icon complete';
         q('step2').querySelector('.step-icon').textContent = '✓';
         q('step2Time').textContent = `${event.proof_ms}ms`;
         q('step2Details').textContent = `Proof ID: ${event.proof_id?.substring(0, 16) || 'N/A'}...`;
-      } else if (event.predicate_met) {
+      } else if (guardRunning && event.predicate_met) {
+        // Proof generation in progress
         q('step2').className = 'pipeline-step active';
         q('step2').querySelector('.step-icon').className = 'step-icon active';
         q('step2').querySelector('.step-icon').textContent = '🔐';
         q('step2Time').textContent = 'Generating...';
         q('step2Details').textContent = 'Creating cryptographic proof (this takes ~4-13s)';
-      } else {
+      } else if (guardRunning) {
+        // Guard running but waiting for threshold
         q('step2').className = 'pipeline-step';
         q('step2').querySelector('.step-icon').className = 'step-icon';
         q('step2').querySelector('.step-icon').textContent = '⏸';
         q('step2Time').textContent = 'Ready';
         q('step2Details').textContent = 'Waiting for confidence threshold';
+      } else {
+        // Guard stopped - idle state
+        q('step2').className = 'pipeline-step';
+        q('step2').querySelector('.step-icon').className = 'step-icon';
+        q('step2').querySelector('.step-icon').textContent = '⏸';
+        q('step2Time').textContent = 'Idle';
+        q('step2Details').textContent = 'Waiting...';
       }
 
-      // Step 3: Verification
+      // Step 3: Verification - only show states if guard is running
       // Keep showing "Verified" state as long as motion is unlocked (within 10 second window)
       const now = Date.now() / 1000;
       const verifiedUntil = event.verified_until || 0;
       const stillUnlocked = verifiedUntil > now;
 
-      if (event.proof_verified === true && stillUnlocked) {
+      if (guardRunning && event.proof_verified === true && stillUnlocked) {
         // Show verified state for the full 10-second unlock duration
         const timeLeft = Math.ceil(verifiedUntil - now);
         q('step3').className = 'pipeline-step complete';
@@ -791,19 +854,26 @@
         if (event.proof_id && !window.seenProofIds.has(event.proof_id)) {
           successCount++;
         }
-      } else if (event.proof_verified === false && event.proof_id) {
+      } else if (guardRunning && event.proof_verified === false && event.proof_id) {
         // Only show "Failed" if there was actually a proof attempt (has proof_id)
         q('step3').className = 'pipeline-step';
         q('step3').querySelector('.step-icon').textContent = '✗';
         q('step3Time').textContent = 'Failed';
         q('step3Details').textContent = 'Proof verification failed';
-      } else {
-        // Default "at rest" state (after unlock expires or no proof yet)
+      } else if (guardRunning) {
+        // Guard running but no proof yet
         q('step3').className = 'pipeline-step';
         q('step3').querySelector('.step-icon').className = 'step-icon';
         q('step3').querySelector('.step-icon').textContent = '⏸';
         q('step3Time').textContent = 'Ready';
         q('step3Details').textContent = 'Awaiting proof generation';
+      } else {
+        // Guard stopped - idle state
+        q('step3').className = 'pipeline-step';
+        q('step3').querySelector('.step-icon').className = 'step-icon';
+        q('step3').querySelector('.step-icon').textContent = '⏸';
+        q('step3Time').textContent = 'Idle';
+        q('step3Details').textContent = 'Waiting...';
       }
 
       // Count proofs: increment when we have a verified or failed proof status
@@ -824,10 +894,31 @@
     }
 
     // Update detection display
-    function updateDetection(event) {
-      if (!event) return;
-      q('detectionLabel').textContent = event.top1_label || 'Unknown';
-      q('detectionConf').textContent = event.top1_score ? `${(event.top1_score * 100).toFixed(1)}%` : '—';
+    function updateDetection(event, guardRunning = false) {
+      // Clear when guard is not running (demo stopped)
+      if (!guardRunning || !event) {
+        q('detectionLabel').textContent = '—';
+        q('detectionConf').textContent = '—';
+        return;
+      }
+
+      // Clear display during proof generation (when predicate is met but proof hasn't completed yet)
+      // This clears the label when proof starts, and it will reappear after the 2s inference pause
+      const isGeneratingProof = event.predicate_met && !event.proof_ms;
+
+      if (isGeneratingProof) {
+        // Clear during proof generation
+        q('detectionLabel').textContent = '—';
+        q('detectionConf').textContent = '—';
+      } else if (event.top1_label && event.top1_score) {
+        // Show detection when guard is running (regardless of threshold)
+        q('detectionLabel').textContent = event.top1_label;
+        q('detectionConf').textContent = `${(event.top1_score * 100).toFixed(1)}%`;
+      } else {
+        // Fallback: clear if no valid detection
+        q('detectionLabel').textContent = '—';
+        q('detectionConf').textContent = '—';
+      }
     }
 
     // Update confidence bars (mock top-5 for now)
@@ -917,11 +1008,11 @@
         if (event.proof_verified === false && event.proof_id) {
           reason = 'Proof verification failed';
         } else if (event.proof_verified === true && timeRemaining <= 0) {
-          reason = 'Proof expired - need new verification';
+          reason = 'Proof expired';
         } else if (event.predicate_met && !event.proof_id) {
           reason = 'Generating proof...';
         } else if (!event.predicate_met) {
-          reason = 'Confidence below threshold (25%)';
+          reason = 'Confidence below threshold (40%)';
         }
 
         // Update badge
@@ -1008,6 +1099,19 @@
     // Main update function
     async function update() {
       try {
+        // FIRST: Check if guard is running BEFORE processing events
+        const status = await (await api('/status')).json();
+        const guardRunning = status.guard || false;
+
+        // If guard just stopped, clear everything immediately
+        if (!guardRunning && lastEvent) {
+          lastEvent = null;
+          updatePipeline(null, false);
+          updateDetection(null, false);
+          // Don't process any events if guard is stopped
+          return;
+        }
+
         const r = await api('/api/last_event');
         if (r.status === 200) {
           let event = await r.json();
@@ -1026,25 +1130,43 @@
             }
           }
 
-          if (event.ts !== lastEvent?.ts || event.proof_verified !== lastEvent?.proof_verified) {
+          // Check if proof_verified status changed from false to true
+          const proofJustVerified = event.proof_verified === true && lastEvent?.proof_verified === false;
+
+          // Also check if we have a newly verified proof by comparing proof_ids
+          const hasNewProof = event.proof_id && event.proof_verified === true &&
+                              event.proof_id !== lastEvent?.proof_id;
+
+          if (event.ts !== lastEvent?.ts || event.proof_verified !== lastEvent?.proof_verified || event.proof_id !== lastEvent?.proof_id) {
             lastEvent = event;
-            updatePipeline(event);
-            updateDetection(event);
+            updatePipeline(event, guardRunning);
+            updateDetection(event, guardRunning);
             updateProofExplorer(event);
             updateMotionGating(event);
             updateMetrics();
+
+            // If proof just got verified OR we have a new proof, immediately update the proofs list
+            if (proofJustVerified || hasNewProof) {
+              await updateVerifiedProofsList();
+              window.lastProofListUpdate = Date.now();
+            }
           } else if (lastEvent) {
-            // Still update motion gating and pipeline even if event hasn't changed (for countdown)
+            // Still update motion gating, pipeline, and detection even if event hasn't changed (for countdown)
             updateMotionGating(lastEvent);
-            updatePipeline(lastEvent);
+            updatePipeline(lastEvent, guardRunning);
+            updateDetection(lastEvent, guardRunning);
           }
         }
 
-        // Update verified proofs list from API
-        await updateVerifiedProofsList();
+        // Update verified proofs list from API (periodic check every 5 seconds)
+        // Skip if we just updated it above for a newly verified proof
+        const timeSinceLastUpdate = Date.now() - (window.lastProofListUpdate || 0);
+        if (timeSinceLastUpdate > 5000) {
+          await updateVerifiedProofsList();
+          window.lastProofListUpdate = Date.now();
+        }
 
-        // Update status
-        const status = await (await api('/status')).json();
+        // Update status dots (reuse status from above)
         ['Verifier', 'Camera', 'Guard', 'Teleop'].forEach(name => {
           const dot = q(`s${name}`);
           const on = status[name.toLowerCase()];

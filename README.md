@@ -123,8 +123,11 @@ The UI automatically:
 2. **Web UI** (`tools/robotics-ui/`): Express.js server + static frontend
    - Control panel for starting/stopping all components
    - Live event stream from `/zkml/event`
-   - Camera frame preview
+   - Camera frame preview with real-time detection display
    - Proof status and lock state indicators
+   - Visual pipeline display showing inference → proof → verification states
+   - Verified proofs history with snapshot thumbnails
+   - Motion gating countdown timer
    - Debug endpoints: `/api/proxy_status`, `/debug/logs`
 
 3. **ONNX Verifier** (`tools/onnx-verifier/`): HTTP zkML verification service
@@ -132,8 +135,9 @@ The UI automatically:
    - Used by default (HTTP mode)
 
 4. **ROS Proxies** (`tools/robotics-ui/*_proxy.py`): Bridge ROS → Filesystem
-   - `event_proxy.py`: `/zkml/event` → `/tmp/rdemo-last-event.json`
+   - `event_proxy.py`: `/zkml/event` → `/tmp/rdemo-last-event.json`, manages verified proofs history
    - `frame_proxy.py`: `/image` → `/tmp/rdemo-frame.png`
+   - Snapshot saving: Captures frame images for verified proofs with retry logic
    - Auto-started by UI server with retry logic
 
 ### File Structure
@@ -250,6 +254,50 @@ ros2 launch zkml_guard zkml_guard_proof.launch.py \
              -p threshold:=0.7
 ```
 
+## Web UI Features
+
+### Real-Time Detection Display
+
+The UI shows live ML inference results with intelligent state management:
+
+**Detection Behavior:**
+- **Guard Running**: Shows continuous detection results (label + confidence %)
+- **During Proof Generation**: Clears detection display to indicate proof processing
+- **After Proof**: Resumes showing detections after inference pause (~2 seconds)
+- **Guard Stopped**: Immediately clears all detection data for clean restart
+
+**State Machine:**
+1. **Stopped** → Clear display, clear internal state (`lastEvent = null`)
+2. **Running → No threshold met** → Show all detections continuously
+3. **Running → Threshold met** → Clear display (proof generating)
+4. **Running → Proof complete** → Resume showing detections after inference pause
+
+This ensures users see fresh, relevant inference data without confusing stale results.
+
+### Verified Proofs History
+
+- Displays last 50 verified proofs with snapshot thumbnails
+- Each proof shows: timestamp, detected label, confidence score, proof ID
+- Snapshots automatically captured at moment of proof verification
+- Reliable snapshot saving with 500ms retry mechanism
+- Updates immediately when new proofs are verified
+
+### Motion Gating Timer
+
+- Large, prominent countdown display showing time until motion lock re-engages
+- Shows remaining seconds from `unlock_hold_ms` parameter
+- Pauses during proof generation
+- Resets when new proof verified
+
+### Pipeline Visualization
+
+Real-time visual feedback showing system state:
+- **Inference** → Running/idle indicator
+- **Proof Generation** → Active/inactive with timing
+- **Verification** → Success/failure status
+
+Color-coded states make it easy to understand what the system is doing at any moment.
+
 ## Web UI Endpoints
 
 Server runs on http://localhost:9200
@@ -260,6 +308,8 @@ Server runs on http://localhost:9200
 - **GET** `/api/last_event` → Latest `/zkml/event` JSON
 - **GET** `/api/stop_state` → Lock state (`/zkml/stop`)
 - **GET** `/api/frame.png` → Latest camera frame
+- **GET** `/api/verified_proofs` → History of last 50 verified proofs
+- **GET** `/api/snapshot/:id.png` → Snapshot image for specific proof ID
 - **GET** `/api/events` → Server-Sent Events stream
 - **POST** `/start/{service}` → Start verifier/camera/guard/teleop/bag
 - **POST** `/stop/{service}` → Stop service
@@ -268,6 +318,51 @@ Server runs on http://localhost:9200
 - **GET** `/start/proxies` → Restart ROS proxies
 - **GET** `/debug/logs` → Proxy log tails
 - **GET** `/debug/files` → Temp file status
+
+## Recent UI Improvements
+
+### Detection Display State Management (2025-10-16)
+
+**Problem**: Detection display showed stale inference results, causing confusion:
+- Old detections remained visible when demo was stopped
+- Detection data persisted briefly when restarting demo
+- Labels shown even when below threshold during proof generation
+
+**Solution**: Implemented intelligent state machine in `demo.html:896-922`:
+- Detection clears immediately when guard stops
+- `lastEvent` set to `null` on stop for clean restart (`demo.html:1131-1136`)
+- Detection clears during proof generation (when `predicate_met && !proof_ms`)
+- Detection shows continuously when guard running (regardless of threshold)
+- Detection resumes after inference pause completes
+
+**Files Modified**: `/home/hshadab/robotics/tools/robotics-ui/public/demo.html`
+
+### Reliable Snapshot Capture (2025-10-16)
+
+**Problem**: Some verified proofs missing snapshot thumbnails (~33% failure rate):
+- `frame_proxy.py` throttles writes (every 5th frame)
+- `event_proxy.py` tried to copy frame immediately
+- Race condition when frame file didn't exist yet
+
+**Solution**: Added retry mechanism in `event_proxy.py:62-68`:
+- Wait up to 500ms for frame file (5 attempts × 100ms)
+- Log warning if frame still not available after retries
+- Import `time` module for sleep functionality
+
+**Result**: All verified proofs now consistently include snapshots
+
+**Files Modified**: `/home/hshadab/robotics/tools/robotics-ui/event_proxy.py`
+
+### Configuration Updates
+
+**Threshold**: Changed from 25% to 40% in `zkml_guard.params.yaml:12`
+**Inference Rate**: Changed to 2000ms (2 seconds) in `zkml_guard.params.yaml:13`
+
+**Note**: These config changes require restarting the guard service to take effect:
+```bash
+# Via UI: Click "Stop All" then "Start Full Demo"
+# Or manually restart guard node
+```
 
 ## Troubleshooting
 
@@ -474,6 +569,8 @@ The UI server cannot directly access ROS topics (different process context). Sol
    - `/tmp/rdemo-last-event.json` - Latest zkML event (JSON)
    - `/tmp/rdemo-stop.txt` - Lock state (true/false)
    - `/tmp/rdemo-frame.png` - Latest camera frame (PNG)
+   - `/tmp/rdemo-verified-proofs.json` - History of last 50 verified proofs
+   - `/tmp/rdemo-snapshots/*.png` - Snapshot images for verified proofs
 3. UI server polls/serves these files via HTTP
 4. Server auto-starts proxies with retry logic and logging to `/tmp/*_proxy.py.log`
 
@@ -482,6 +579,11 @@ The UI server cannot directly access ROS topics (different process context). Sol
 - File-based IPC is simple, debuggable, and cross-process
 - Proxies can crash/restart independently without affecting UI server
 - Easy to inspect state: `cat /tmp/rdemo-last-event.json`
+
+**Snapshot Reliability:**
+- `event_proxy.py` waits up to 500ms for frame file when proof verified (5 retries × 100ms)
+- Handles timing issue where `frame_proxy.py` throttles frame writes (every 5th frame)
+- Ensures all verified proofs have associated snapshot images
 
 ### Smart Proof Design
 

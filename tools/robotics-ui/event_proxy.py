@@ -2,6 +2,8 @@
 import json
 import os
 import sys
+import shutil
+import time
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String as StringMsg
@@ -9,6 +11,9 @@ from std_msgs.msg import Bool as BoolMsg
 
 LAST_EVENT = '/tmp/rdemo-last-event.json'
 STOP_FILE = '/tmp/rdemo-stop.txt'
+VERIFIED_PROOFS_HISTORY = '/tmp/rdemo-verified-proofs.json'
+FRAME_FILE = '/tmp/rdemo-frame.png'
+SNAPSHOTS_DIR = '/tmp/rdemo-snapshots'
 
 
 class EventProxy(Node):
@@ -17,9 +22,18 @@ class EventProxy(Node):
         self.create_subscription(StringMsg, '/zkml/event', self.on_event, 10)
         self.create_subscription(BoolMsg, '/zkml/stop', self.on_stop, 10)
         os.makedirs('/tmp', exist_ok=True)
+        os.makedirs(SNAPSHOTS_DIR, exist_ok=True)
+
+        # Initialize verified proofs history file
+        if not os.path.exists(VERIFIED_PROOFS_HISTORY):
+            with open(VERIFIED_PROOFS_HISTORY, 'w') as f:
+                json.dump([], f)
+
         self.get_logger().info(f'EventProxy started: subscribed to /zkml/event and /zkml/stop')
         self.get_logger().info(f'Writing event data to {LAST_EVENT}')
         self.get_logger().info(f'Writing stop state to {STOP_FILE}')
+        self.get_logger().info(f'Writing verified proofs history to {VERIFIED_PROOFS_HISTORY}')
+        self.get_logger().info(f'Saving snapshots to {SNAPSHOTS_DIR}')
 
     def on_event(self, msg: StringMsg):
         try:
@@ -28,8 +42,62 @@ class EventProxy(Node):
             self.get_logger().warn(f'Failed to parse event JSON: {e}')
             data = {'raw': msg.data}
         try:
+            # Always write the last event
             with open(LAST_EVENT, 'w') as f:
                 json.dump(data, f)
+
+            # If this event has a verified proof, add it to the history
+            if data.get('proof_verified') is True and data.get('proof_id'):
+                try:
+                    # Read existing history
+                    with open(VERIFIED_PROOFS_HISTORY, 'r') as f:
+                        history = json.load(f)
+
+                    # Check if this proof_id is already in history (avoid duplicates)
+                    proof_ids = {item.get('proof_id') for item in history}
+                    if data.get('proof_id') not in proof_ids:
+                        # Save a snapshot of the current frame
+                        snapshot_saved = False
+
+                        # Wait briefly for frame file if it doesn't exist yet (up to 500ms)
+                        frame_wait_attempts = 5
+                        for attempt in range(frame_wait_attempts):
+                            if os.path.exists(FRAME_FILE):
+                                break
+                            if attempt < frame_wait_attempts - 1:
+                                time.sleep(0.1)  # Wait 100ms between attempts
+
+                        if os.path.exists(FRAME_FILE):
+                            try:
+                                # Use proof_id as filename (strip 0x prefix if present)
+                                proof_id = data.get('proof_id')
+                                if proof_id.startswith('0x'):
+                                    proof_id = proof_id[2:]
+                                snapshot_path = os.path.join(SNAPSHOTS_DIR, f'{proof_id}.png')
+                                shutil.copy2(FRAME_FILE, snapshot_path)
+                                data['snapshot'] = proof_id  # Store just the ID, not full path
+                                snapshot_saved = True
+                                self.get_logger().info(f'Snapshot saved: {snapshot_path}')
+                            except Exception as e:
+                                self.get_logger().warn(f'Failed to save snapshot: {e}')
+                        else:
+                            self.get_logger().warn(f'Frame file not found after {frame_wait_attempts} attempts: {FRAME_FILE}')
+
+                        # Add the new verified proof to the beginning of the list
+                        history.insert(0, data)
+
+                        # Keep only the last 50 verified proofs
+                        history = history[:50]
+
+                        # Write updated history
+                        with open(VERIFIED_PROOFS_HISTORY, 'w') as f:
+                            json.dump(history, f)
+
+                        snap_msg = ' (with snapshot)' if snapshot_saved else ''
+                        self.get_logger().info(f'Verified proof added to history: {data.get("top1_label")} (ID: {data.get("proof_id")[:12]}...){snap_msg}')
+                except Exception as e:
+                    self.get_logger().error(f'Failed to update verified proofs history: {e}')
+
             self.get_logger().debug(f'Event written: top1={data.get("top1_label", "?")} proof={data.get("proof_verified", "?")}')
         except Exception as e:
             self.get_logger().error(f'Failed to write event file: {e}')
