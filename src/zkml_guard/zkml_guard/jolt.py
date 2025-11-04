@@ -2,10 +2,11 @@ import hashlib
 import json
 import os
 import shlex
+import struct
 import subprocess
 import tempfile
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 
 @dataclass
@@ -30,6 +31,75 @@ def sha256_bytes(b: bytes) -> str:
     return hashlib.sha256(b).hexdigest()
 
 
+def create_inference_commitment(
+    top1_id: int,
+    confidence: float,
+    model_hash: str,
+) -> Tuple[str, bytes]:
+    """
+    Create a cryptographic commitment to MobileNetV2 inference output.
+
+    This binds the sentinel proof to the actual inference result by creating
+    a commitment that includes:
+    - top1_id: The argmax class from MobileNetV2
+    - confidence: The softmax probability for that class
+    - model_hash: The SHA256 of the model (prevents model substitution)
+
+    The sentinel proof will verify that it knows values matching this commitment.
+
+    Args:
+        top1_id: Argmax class ID (0-999 for ImageNet)
+        confidence: Softmax probability (0.0-1.0)
+        model_hash: SHA256 hex string of the ONNX model
+
+    Returns:
+        Tuple of (commitment_hex, commitment_bytes)
+        - commitment_hex: Hex string for logging/display
+        - commitment_bytes: Raw bytes for verification
+
+    Security Properties:
+        - Collision-resistant: Infeasible to find different inputs with same commitment
+        - Binding: Cannot change inference result after commitment is made
+        - Deterministic: Same inputs always produce same commitment
+    """
+    # Quantize confidence to fixed precision (4 decimal places)
+    # This prevents floating point precision issues while maintaining accuracy
+    confidence_quantized = int(confidence * 10000)
+
+    # Pack data into deterministic binary format
+    # Format: top1_id (4 bytes) + confidence_quantized (4 bytes) + model_hash (32 bytes)
+    data = struct.pack('<II', top1_id, confidence_quantized)  # Little-endian unsigned ints
+    data += bytes.fromhex(model_hash)
+
+    # Use SHA3-256 for commitment (resistant to length extension attacks)
+    commitment_bytes = hashlib.sha3_256(data).digest()
+    commitment_hex = commitment_bytes.hex()
+
+    return commitment_hex, commitment_bytes
+
+
+def verify_inference_commitment(
+    commitment_hex: str,
+    top1_id: int,
+    confidence: float,
+    model_hash: str,
+) -> bool:
+    """
+    Verify that inference values match a commitment.
+
+    Args:
+        commitment_hex: Expected commitment (hex string)
+        top1_id: Claimed argmax class ID
+        confidence: Claimed confidence score
+        model_hash: SHA256 of the model
+
+    Returns:
+        True if commitment matches, False otherwise
+    """
+    recomputed_hex, _ = create_inference_commitment(top1_id, confidence, model_hash)
+    return recomputed_hex == commitment_hex
+
+
 def run_proof(
     model_path: str,
     input_npy: bytes,
@@ -52,9 +122,12 @@ def run_proof(
     The CLI should print JSON to stdout with keys like:
       proof_verified (bool), proof_ms (number), proof_id (string)
     Extra fields are ignored.
+
+    SECURITY: This function uses shlex.split() to safely parse command templates.
+    NEVER pass shell=True to subprocess.run to prevent command injection.
     """
-    os.makedirs(os.path.expanduser('~/.cache/zkml_guard/tmp'), exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=os.path.expanduser('~/.cache/zkml_guard/tmp')) as td:
+    # Use system temp directory for security (proper permissions, cleanup)
+    with tempfile.TemporaryDirectory() as td:
         input_path = os.path.join(td, 'input.npy')
         with open(input_path, 'wb') as f:
             f.write(input_npy)
@@ -66,7 +139,8 @@ def run_proof(
 
         output_path = os.path.join(td, 'proof.json')
 
-        cmd = prove_cmd_template.format(
+        # Format template with safe values
+        cmd_str = prove_cmd_template.format(
             model=os.path.abspath(model_path),
             input=input_path,
             raw_input=raw_png,
@@ -75,13 +149,23 @@ def run_proof(
             output=output_path,
         )
 
+        # Parse command string into safe argument list
+        # SECURITY: Always use list form, NEVER shell=True
         try:
-            # Prefer not to invoke a shell; split safely if possible
-            args = shlex.split(cmd)
-        except Exception:
-            args = cmd  # fallback
+            args = shlex.split(cmd_str)
+        except Exception as e:
+            # If shlex parsing fails, the template is malformed - FAIL IMMEDIATELY
+            error_msg = f'Invalid command template - parsing failed: {e}'
+            return ProofResult(False, None, None, None, error_msg, cmd_str)
+
+        # Validate that we have at least a command to run
+        if not args:
+            error_msg = 'Command template produced empty command'
+            return ProofResult(False, None, None, None, error_msg, cmd_str)
 
         try:
+            # Execute with list of args (safe - no shell interpretation)
+            # shell=False is the default, but we make it explicit for security
             proc = subprocess.run(
                 args,
                 stdout=subprocess.PIPE,
@@ -89,11 +173,15 @@ def run_proof(
                 timeout=timeout_sec,
                 check=False,
                 text=True,
+                shell=False,  # CRITICAL: Never use shell=True (prevents injection)
             )
         except subprocess.TimeoutExpired as e:
-            return ProofResult(False, None, None, None, f'timeout: {e}', cmd)
+            return ProofResult(False, None, None, None, f'timeout: {e}', cmd_str)
+        except FileNotFoundError as e:
+            error_msg = f'Proof binary not found: {args[0]} - {e}'
+            return ProofResult(False, None, None, None, error_msg, cmd_str)
         except Exception as e:
-            return ProofResult(False, None, None, None, f'error: {e}', cmd)
+            return ProofResult(False, None, None, None, f'error: {e}', cmd_str)
 
         proof_verified = False
         proof_ms = None

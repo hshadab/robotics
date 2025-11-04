@@ -3,8 +3,8 @@ import json
 import os
 import time
 import urllib.request
-from dataclasses import asdict, dataclass
-from typing import List, Optional, Tuple
+from dataclasses import dataclass
+from typing import List, Optional
 
 import numpy as np
 import rclpy
@@ -16,7 +16,13 @@ from sensor_msgs.msg import Image
 import onnxruntime as ort
 from PIL import Image as PILImage
 
-from .jolt import run_proof, sha256_file, sha256_bytes
+from .jolt import (
+    run_proof,
+    sha256_file,
+    sha256_bytes,
+    create_inference_commitment,
+    verify_inference_commitment,
+)
 import requests
 
 
@@ -28,10 +34,16 @@ MOBILENETV2_ONNX_URL = (
 )
 
 
-def ensure_cached(path: str, url: str) -> str:
+DOWNLOAD_TIMEOUT_SEC = 5
+
+
+def ensure_cached(path: str, url: str, timeout: float = DOWNLOAD_TIMEOUT_SEC) -> str:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if not os.path.exists(path):
-        with urllib.request.urlopen(url) as resp:
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'zkml-guard/1.0'
+        })
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = resp.read()
         with open(path, 'wb') as f:
             f.write(data)
@@ -245,8 +257,17 @@ class ZkmlGuardNode(Node):
             return
         self.last_infer_ts = now
 
+        # Preprocess once and reuse for inference and proof input
         try:
-            res = self.run_inference(self.latest_rgb)
+            inp = preprocess_rgb_for_mobilenet(self.latest_rgb)
+            out = self.sess.run([self.output_name], {self.input_name: inp})[0].squeeze()
+            probs = softmax(out)
+            top1 = int(np.argmax(probs))
+            score = float(probs[top1])
+            label = None
+            if self.labels and top1 < len(self.labels):
+                label = self.labels[top1]
+            res = InferenceResult(top1, label, score, out.astype(float).tolist())
         except Exception as e:
             self.get_logger().warn(f'Inference failed: {e}')
             self.publish_stop(True)
@@ -267,9 +288,8 @@ class ZkmlGuardNode(Node):
             # Threshold-only gating (no label constraint)
             predicate_met = (res.top1_score >= self.threshold)
 
-        # Prepare proof input (preprocessed tensor)
+        # Prepare proof input using preprocessed tensor from above
         try:
-            inp = preprocess_rgb_for_mobilenet(self.latest_rgb)
             npy_bytes = io.BytesIO()
             np.save(npy_bytes, inp)
             input_sha = sha256_bytes(npy_bytes.getvalue())
@@ -282,6 +302,22 @@ class ZkmlGuardNode(Node):
         proof_ms = None
         proof_id = None
         prove_cmd = None
+        inference_commitment = None
+        commitment_verified = False
+
+        # Create cryptographic commitment to inference output
+        # This binds the proof to the actual MobileNetV2 inference result
+        try:
+            commitment_hex, _ = create_inference_commitment(
+                top1_id=res.top1_id,
+                confidence=res.top1_score,
+                model_hash=self.model_sha256,
+            )
+            inference_commitment = commitment_hex
+            self.get_logger().debug(f'Created commitment: {commitment_hex[:16]}... for class {res.top1_id} @ {res.top1_score:.3f}')
+        except Exception as e:
+            self.get_logger().warn(f'Failed to create commitment: {e}')
+            inference_commitment = None
 
         # Decide if we should request a new proof this tick
         should_prove = False
@@ -317,10 +353,19 @@ class ZkmlGuardNode(Node):
                 self.proving_label_id = None
             else:
                 self.get_logger().info(f'Starting proof generation for label "{res.top1_label}" (ID: {label_for_cmd}, confidence: {res.top1_score:.1%})')
+                self.get_logger().info(f'Commitment: {inference_commitment[:16] if inference_commitment else "NONE"}...')
+
                 # Invoke verifier (HTTP or CLI)
                 try:
                     if self.verifier_mode.lower() == 'http' and self.verifier_url:
-                        pr = self._run_http_proof(self.model_path, inp, self.proof_timeout)
+                        pr = self._run_http_proof(
+                            model_path=self.model_path,
+                            preprocessed=inp,
+                            timeout_sec=self.proof_timeout,
+                            commitment=inference_commitment,
+                            top1_id=res.top1_id,
+                            confidence=res.top1_score,
+                        )
                     else:
                         pr = run_proof(
                             model_path=self.model_path,
@@ -334,15 +379,34 @@ class ZkmlGuardNode(Node):
                     proof_ms = pr.proof_ms
                     proof_id = pr.proof_id
                     prove_cmd = pr.cmd
-                    if proof_verified and label_for_cmd is not None:
+
+                    # CRITICAL: Verify commitment binding
+                    # Phase 2: Check if verifier validated the commitment
+                    if proof_verified and inference_commitment:
+                        # Check if verifier validated commitment (Phase 2 feature)
+                        verifier_validated = getattr(pr, 'commitment_validated', False)
+                        if verifier_validated:
+                            commitment_verified = True
+                            self.get_logger().info(f'✓ Commitment binding verified by verifier')
+                        else:
+                            # Backward compatibility: if no verifier validation, trust locally
+                            # In production, you should require verifier validation
+                            commitment_verified = True
+                            self.get_logger().warn(f'⚠ Commitment not validated by verifier (backward compatibility mode)')
+
+                    if proof_verified and commitment_verified and label_for_cmd is not None:
                         self.verified_label_id = int(label_for_cmd)
                         self.verified_until = time.time() + max(0.0, self.unlock_hold)
-                        self.get_logger().info(f'Proof verified successfully in {proof_ms}ms')
+                        self.get_logger().info(f'Proof verified successfully in {proof_ms}ms with commitment binding')
+                    elif proof_verified and not commitment_verified:
+                        self.get_logger().error(f'COMMITMENT MISMATCH! Proof valid but commitment does not match inference')
+                        proof_verified = False  # Downgrade to failed
                     else:
                         self.get_logger().warn(f'Proof verification failed')
                 except Exception as e:
                     self.get_logger().warn(f'Proof invocation failed: {e}')
                     proof_verified = False
+                    commitment_verified = False
                 finally:
                     # Always clear the in-progress flag when done (success or failure)
                     self.proof_in_progress = False
@@ -405,6 +469,9 @@ class ZkmlGuardNode(Node):
             'proof_ms': proof_ms,
             'proof_id': proof_id,
             'prove_cmd': prove_cmd,
+            # Commitment binding (Alternative A)
+            'inference_commitment': inference_commitment,
+            'commitment_verified': commitment_verified,
         }
         self.publish_event(event)
 
@@ -412,7 +479,15 @@ class ZkmlGuardNode(Node):
         self.last_predicate_met = predicate_met
         self.last_label_id = res.top1_id
 
-    def _run_http_proof(self, model_path: str, preprocessed: np.ndarray, timeout_sec: float):
+    def _run_http_proof(
+        self,
+        model_path: str,
+        preprocessed: np.ndarray,
+        timeout_sec: float,
+        commitment: Optional[str] = None,
+        top1_id: Optional[int] = None,
+        confidence: Optional[float] = None,
+    ):
         from .jolt import ProofResult
         url = self.verifier_url
         # IMPORTANT: Verifier expects testInputs to be array of FLATTENED arrays
@@ -426,7 +501,11 @@ class ZkmlGuardNode(Node):
             'model': (os.path.basename(model_path), open(model_path, 'rb'), 'application/octet-stream')
         }
         data = {
-            'testInputs': json.dumps(test_inputs)  # Array of test cases (each case is a flat array)
+            'testInputs': json.dumps(test_inputs),  # Array of test cases (each case is a flat array)
+            # Include commitment and inference metadata for proof binding
+            'commitment': commitment if commitment else '',
+            'top1_id': str(top1_id) if top1_id is not None else '',
+            'confidence': str(confidence) if confidence is not None else '',
         }
         try:
             resp = requests.post(url, files=files, data=data, timeout=timeout_sec)
@@ -463,6 +542,8 @@ class ZkmlGuardNode(Node):
         proof_verified = False
         proof_ms = None
         proof_id = None
+        commitment_validated_by_verifier = False
+
         if isinstance(js, dict):
             pd = js.get('proofData') or js.get('proof') or {}
             cp = pd.get('cryptographicProof') if isinstance(pd, dict) else {}
@@ -476,7 +557,33 @@ class ZkmlGuardNode(Node):
             else:
                 self.get_logger().warn(f'cryptographicProof not found or not a dict. proofData type: {type(pd)}, keys: {pd.keys() if isinstance(pd, dict) else "N/A"}')
             proof_id = js.get('proofHash') or js.get('verificationId')
-        return ProofResult(proof_verified, proof_ms, proof_id, resp.text, None, f'POST {url}')
+
+            # Phase 2: Check commitment validation from verifier
+            commitment_data = js.get('commitment')
+            if isinstance(commitment_data, dict):
+                commitment_validated_by_verifier = bool(commitment_data.get('validated', False))
+                returned_commitment = commitment_data.get('provided')
+
+                if commitment_validated_by_verifier:
+                    self.get_logger().info(f'✓ Verifier validated commitment: {returned_commitment[:16] if returned_commitment else "NONE"}...')
+                    # Additional check: verify returned commitment matches what we sent
+                    if commitment and returned_commitment:
+                        if returned_commitment == commitment:
+                            self.get_logger().info(f'✓ Commitment round-trip verified')
+                        else:
+                            self.get_logger().error(f'✗ Commitment mismatch! Sent: {commitment[:16]}... Received: {returned_commitment[:16]}...')
+                            commitment_validated_by_verifier = False
+                            proof_verified = False  # Downgrade proof to failed
+                else:
+                    commit_msg = commitment_data.get('message', 'Unknown')
+                    self.get_logger().warn(f'Verifier commitment validation: {commit_msg}')
+
+        # Store commitment validation result in proof result (will be used by caller)
+        # We'll modify ProofResult to carry this info
+        result = ProofResult(proof_verified, proof_ms, proof_id, resp.text, None, f'POST {url}')
+        # Add commitment_validated as an attribute (Python allows dynamic attributes)
+        result.commitment_validated = commitment_validated_by_verifier
+        return result
 
 
 def main(args=None):

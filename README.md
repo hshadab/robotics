@@ -2,6 +2,47 @@
 
 > Zero-Knowledge Machine Learning proofs gating robot motion commands
 
+## ⚠️ IMPORTANT: PROOF OF CONCEPT LIMITATION
+
+**THIS IS A DEMONSTRATION SYSTEM - NOT PRODUCTION READY**
+
+**Critical Limitation**: This demo uses a **sentinel model** for proof generation, NOT the full MobileNetV2 model used for inference decisions. Here's what this means:
+
+- ✅ **What IS proven**: A small sentinel ONNX model (11-step execution trace) was executed correctly with cryptographic guarantees
+- ❌ **What is NOT proven**: The MobileNetV2 inference that determines motion gating
+- 🔗 **Binding mechanism**: SHA256 hash metadata only - NOT cryptographically binding the two computations
+
+**Why this limitation exists**:
+- Full MobileNetV2 JOLT proof would take **30-120 minutes** and require 10-50GB RAM
+- Current JOLT technology cannot produce real-time proofs for production ML models
+- Demo proves the proof system works, but NOT the actual inference used for robot control
+
+**Security implications**:
+- Hash binding (model_sha256, input_sha256) is metadata that can be forged
+- An attacker could run malicious MobileNetV2 inference while proving a benign sentinel model
+- The cryptographic proof and the safety-critical inference are **decoupled**
+
+**For production use, you would need**:
+- Hardware-accelerated proof generation (GPU provers)
+- Incremental Verifiable Computation (IVC) / recursive SNARKs
+- Proof aggregation to bind sentinel proof to full model output hash
+- Or accept multi-minute latency for full model proofs
+
+**This demo is valuable for**:
+- Understanding zkML concepts and architecture
+- Testing proof system integration with ROS 2
+- Demonstrating cryptographic verification workflows
+- Exploring zkML UX and developer experience
+
+**This demo should NOT be used for**:
+- Safety-critical robot control
+- Production autonomous systems
+- Any scenario where you need to cryptographically verify the actual ML inference
+
+See [Smart Proof Design](#smart-proof-design) section for technical details.
+
+---
+
 ## Overview
 
 This project demonstrates **cryptographically verifiable robotics** by integrating JOLT-Atlas zero-knowledge proofs with ROS 2. It creates a trustworthy control system where robot motion requires proof that specific ML computations were executed correctly.
