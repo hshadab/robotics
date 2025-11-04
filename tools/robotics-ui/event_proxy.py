@@ -5,6 +5,10 @@ import sys
 import shutil
 import time
 import rclpy
+try:
+    import requests  # type: ignore
+except Exception:
+    requests = None
 from rclpy.node import Node
 from std_msgs.msg import String as StringMsg
 from std_msgs.msg import Bool as BoolMsg
@@ -21,6 +25,7 @@ class EventProxy(Node):
         super().__init__('rdemo_event_proxy')
         self.create_subscription(StringMsg, '/zkml/event', self.on_event, 10)
         self.create_subscription(BoolMsg, '/zkml/stop', self.on_stop, 10)
+        self.server_url = os.environ.get('RD_UI_SERVER', 'http://localhost:9200')
         os.makedirs('/tmp', exist_ok=True)
         os.makedirs(SNAPSHOTS_DIR, exist_ok=True)
 
@@ -42,9 +47,15 @@ class EventProxy(Node):
             self.get_logger().warn(f'Failed to parse event JSON: {e}')
             data = {'raw': msg.data}
         try:
-            # Always write the last event
-            with open(LAST_EVENT, 'w') as f:
-                json.dump(data, f)
+            # Push directly to UI server (preferred)
+            try:
+                if requests is None:
+                    raise RuntimeError('requests not available')
+                requests.post(f'{self.server_url}/internal/event', json=data, timeout=0.5)
+            except Exception as e:
+                # Mirror to disk as fallback
+                with open(LAST_EVENT, 'w') as f:
+                    json.dump(data, f)
 
             # If this event has a verified proof, add it to the history
             if data.get('proof_verified') is True and data.get('proof_id'):
@@ -90,8 +101,14 @@ class EventProxy(Node):
                         history = history[:50]
 
                         # Write updated history
-                        with open(VERIFIED_PROOFS_HISTORY, 'w') as f:
-                            json.dump(history, f)
+                        try:
+                            if requests is None:
+                                raise RuntimeError('requests not available')
+                            # Attempt to refresh server history, else write locally
+                            requests.post(f'{self.server_url}/internal/event', json=data, timeout=0.5)
+                        except Exception:
+                            with open(VERIFIED_PROOFS_HISTORY, 'w') as f:
+                                json.dump(history, f)
 
                         snap_msg = ' (with snapshot)' if snapshot_saved else ''
                         self.get_logger().info(f'Verified proof added to history: {data.get("top1_label")} (ID: {data.get("proof_id")[:12]}...){snap_msg}')
@@ -104,8 +121,14 @@ class EventProxy(Node):
 
     def on_stop(self, msg: BoolMsg):
         try:
-            with open(STOP_FILE, 'w') as f:
-                f.write('true' if msg.data else 'false')
+            # Push to UI server; fallback to file
+            try:
+                if requests is None:
+                    raise RuntimeError('requests not available')
+                requests.post(f'{self.server_url}/internal/stop', json={'stop': bool(msg.data)}, timeout=0.5)
+            except Exception:
+                with open(STOP_FILE, 'w') as f:
+                    f.write('true' if msg.data else 'false')
             self.get_logger().debug(f'Stop state written: {msg.data}')
         except Exception as e:
             self.get_logger().error(f'Failed to write stop file: {e}')
@@ -132,4 +155,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

@@ -3,6 +3,10 @@ import io
 import os
 import sys
 import rclpy
+try:
+    import requests  # type: ignore
+except Exception:
+    requests = None
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 import numpy as np
@@ -16,6 +20,7 @@ class FrameProxy(Node):
         super().__init__('rdemo_frame_proxy')
         topic = self.declare_parameter('topic', '/image').get_parameter_value().string_value or '/image'
         self.sub = self.create_subscription(Image, topic, self.cb, 10)
+        self.server_url = os.environ.get('RD_UI_SERVER', 'http://localhost:9200')
         os.makedirs('/tmp', exist_ok=True)
         self._throttle = 0
         self._frame_count = 0
@@ -49,8 +54,19 @@ class FrameProxy(Node):
             img = PILImage.fromarray(arr)
             buf = io.BytesIO()
             img.save(buf, format='PNG')
-            with open(FRAME_FILE, 'wb') as f:
-                f.write(buf.getvalue())
+            payload = buf.getvalue()
+            # Preferred: push to UI server; fallback to file write
+            pushed = False
+            try:
+                if requests is None:
+                    raise RuntimeError('requests not available')
+                requests.post(f'{self.server_url}/internal/frame', data=payload, headers={'Content-Type': 'image/png'}, timeout=0.5)
+                pushed = True
+            except Exception:
+                pass
+            if not pushed:
+                with open(FRAME_FILE, 'wb') as f:
+                    f.write(payload)
             if self._frame_count % 50 == 0:
                 self.get_logger().info(f'Processed {self._frame_count} frames ({h}x{w} {msg.encoding})')
         except Exception as e:
@@ -78,4 +94,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

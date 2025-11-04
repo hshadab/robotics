@@ -1,18 +1,17 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { spawn, execSync } = require('child_process');
+const { spawn } = require('child_process');
 const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 9200;
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-const ROOT = path.resolve(__dirname, '../../');
 const WS_ROOT = path.resolve(__dirname, '../../');
 const VERIFIER_DIR = path.resolve(__dirname, '../onnx-verifier');
-const VENV_SITE = path.join(process.env.HOME || '', '.venvs/zkml_guard_ui/lib/python3.12/site-packages');
 const PROXY_EVENT_PID = '/tmp/rdemo-event-proxy.pid';
 const PROXY_FRAME_PID = '/tmp/rdemo-frame-proxy.pid';
 const LAST_EVENT_FILE = '/tmp/rdemo-last-event.json';
@@ -23,14 +22,26 @@ const SNAPSHOTS_DIR = '/tmp/rdemo-snapshots';
 const PROXY_EVENT_LOG = '/tmp/event_proxy.py.log';
 const PROXY_FRAME_LOG = '/tmp/frame_proxy.py.log';
 
-function rosEnvCmd(userCmd) {
-  // Build a bash command that sources ROS + workspace and runs user command
-  const setupRos = `/opt/ros/${process.env.ROS_DISTRO || 'jazzy'}/setup.bash`;
-  return `set -e; source '${setupRos}' >/dev/null 2>&1 || true; if [ -f '${WS_ROOT}/install/setup.bash' ]; then . '${WS_ROOT}/install/setup.bash'; fi; ${userCmd}`;
+// In-memory state to replace brittle temp-file IPC
+const state = {
+  lastEvent: null,
+  stop: null,
+  lastFrame: null, // Buffer
+  verifiedProofs: [],
+};
+
+// Simple SSE client registry for push updates
+const sseClients = new Set();
+function sseBroadcast(eventName, dataObj) {
+  const payload = `event: ${eventName}\n` +
+                  `data: ${JSON.stringify(dataObj)}\n\n`;
+  for (const res of sseClients) {
+    try { res.write(payload); } catch (_) {}
+  }
 }
 
-function rosEnvCmdBare(userCmd) {
-  // Same as rosEnvCmd
+function rosEnvCmd(userCmd) {
+  // Build a bash command that sources ROS + workspace and runs user command
   const setupRos = `/opt/ros/${process.env.ROS_DISTRO || 'jazzy'}/setup.bash`;
   return `set -e; source '${setupRos}' >/dev/null 2>&1 || true; if [ -f '${WS_ROOT}/install/setup.bash' ]; then . '${WS_ROOT}/install/setup.bash'; fi; ${userCmd}`;
 }
@@ -105,27 +116,26 @@ function sseEvents(req, res){
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
   });
-  const tick = () => {
-    try {
-      const txt = fs.readFileSync(LAST_EVENT_FILE, 'utf8');
-      const obj = JSON.parse(txt);
-      res.write('event: zkml\n');
-      res.write(`data: ${JSON.stringify(obj)}\n\n`);
-    } catch {}
-  };
-  tick();
-  const timer = setInterval(tick, 1000);
-  const stop = () => clearInterval(timer);
-  req.on('close', stop); req.on('end', stop);
+  // Send current snapshot immediately
+  if (state.lastEvent) {
+    res.write('event: zkml\n');
+    res.write(`data: ${JSON.stringify(state.lastEvent)}\n\n`);
+  }
+  sseClients.add(res);
+  const cleanup = () => { try { sseClients.delete(res); } catch {} };
+  req.on('close', cleanup);
+  req.on('end', cleanup);
 }
 app.get('/events', sseEvents);
 app.get('/api/events', sseEvents);
 
 // Polling fallback: return one latest /zkml/event sample
 app.get('/api/last_event', (req, res) => {
+  if (state.lastEvent) return res.json(state.lastEvent);
   try {
     const txt = fs.readFileSync(LAST_EVENT_FILE, 'utf8');
     const obj = JSON.parse(txt);
+    state.lastEvent = obj; // hydrate cache
     return res.json(obj);
   } catch {
     return res.status(204).end();
@@ -134,9 +144,11 @@ app.get('/api/last_event', (req, res) => {
 
 // Verified proofs history
 app.get('/api/verified_proofs', (req, res) => {
+  if (state.verifiedProofs.length) return res.json(state.verifiedProofs);
   try {
     const txt = fs.readFileSync(VERIFIED_PROOFS_FILE, 'utf8');
     const arr = JSON.parse(txt);
+    state.verifiedProofs = arr;
     return res.json(arr);
   } catch {
     return res.json([]);
@@ -155,9 +167,13 @@ app.post('/api/clear_verified_proofs', (req, res) => {
 
 // STOP lock indicator
 app.get('/api/stop_state', (req, res) => {
+  if (typeof state.stop === 'boolean') return res.json({ stop: state.stop });
   try {
     const val = fs.readFileSync(STOP_FILE, 'utf8').trim();
-    if (val === 'true' || val === 'false') return res.json({ stop: val === 'true' });
+    if (val === 'true' || val === 'false') {
+      state.stop = (val === 'true');
+      return res.json({ stop: state.stop });
+    }
   } catch {}
   return res.json({ stop: null });
 });
@@ -165,7 +181,14 @@ app.get('/api/stop_state', (req, res) => {
 // Latest camera frame as PNG
 app.get('/api/frame.png', (req, res) => {
   try {
+    if (state.lastFrame) {
+      res.setHeader('Content-Type', 'image/png');
+      return res.end(state.lastFrame);
+    }
+  } catch {}
+  try {
     const png = fs.readFileSync(FRAME_FILE);
+    state.lastFrame = png; // hydrate cache
     res.setHeader('Content-Type', 'image/png');
     res.end(png);
   } catch {
@@ -352,7 +375,7 @@ function ensureProxy(pyName, pidFile, logFile) {
     return { started: false, error: 'script not found' };
   }
 
-  const cmd = rosEnvCmdBare(`python3 '${py}' 2>&1`);
+  const cmd = rosEnvCmd(`python3 '${py}' 2>&1`);
   console.log(`[robotics-ui] Starting ${proxyName}...`);
 
   const p = spawn('/bin/bash', ['-lc', cmd], {
@@ -409,6 +432,67 @@ function startProxiesWithRetry() {
 }
 
 startProxiesWithRetry();
+
+// Internal push endpoints for proxies (replace temp-file IPC)
+app.post('/internal/event', (req, res) => {
+  try {
+    const data = req.body && Object.keys(req.body).length ? req.body : null;
+    if (!data) return res.status(400).json({ ok: false, error: 'missing body' });
+    state.lastEvent = data;
+
+    // Mirror to disk for compatibility
+    try { fs.writeFileSync(LAST_EVENT_FILE, JSON.stringify(data)); } catch {}
+
+    // If verified proof, add to history and snapshot current frame
+    if (data.proof_verified === true && data.proof_id) {
+      const exists = state.verifiedProofs.find(p => p.proof_id === data.proof_id);
+      if (!exists) {
+        // Save snapshot if we have a frame
+        if (state.lastFrame) {
+          try {
+            const id = (data.proof_id || '').replace(/^0x/, '');
+            const snapshotPath = path.join(SNAPSHOTS_DIR, `${id}.png`);
+            fs.writeFileSync(snapshotPath, state.lastFrame);
+            data.snapshot = id;
+          } catch {}
+        }
+        state.verifiedProofs.unshift(data);
+        state.verifiedProofs = state.verifiedProofs.slice(0, 50);
+        try { fs.writeFileSync(VERIFIED_PROOFS_FILE, JSON.stringify(state.verifiedProofs)); } catch {}
+      }
+    }
+
+    sseBroadcast('zkml', data);
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post('/internal/stop', (req, res) => {
+  try {
+    const stop = !!(req.body && (req.body.stop === true || req.body.stop === 'true'));
+    state.stop = stop;
+    try { fs.writeFileSync(STOP_FILE, stop ? 'true' : 'false'); } catch {}
+    sseBroadcast('stop', { stop });
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post('/internal/frame', express.raw({ type: 'image/png', limit: '5mb' }), (req, res) => {
+  try {
+    if (!req.body || !req.body.length) return res.status(400).json({ ok: false, error: 'missing PNG body' });
+    state.lastFrame = Buffer.from(req.body);
+    // Mirror to disk for compatibility
+    try { fs.writeFileSync(FRAME_FILE, state.lastFrame); } catch {}
+    // No SSE broadcast to avoid flooding; clients pull /api/frame.png on demand
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
 
 // Proxy status and control
 app.get('/api/proxy_status', (req, res) => {
