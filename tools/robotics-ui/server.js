@@ -1,12 +1,24 @@
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 9200;
+
+// Rate limiting for prototype (generous limits for localhost demo)
+const limiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 100, // 100 requests per minute
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 app.use(cors());
+app.use(limiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -60,6 +72,11 @@ function startProc(cmd, opts = {}) {
     const logStream = fs.createWriteStream(logFile, { flags: 'a' });
     p.stdout.pipe(logStream);
     p.stderr.pipe(logStream);
+
+    // Close log stream when process exits to prevent resource leak
+    p.on('exit', () => {
+      logStream.end();
+    });
   }
 
   p.unref();
@@ -395,6 +412,8 @@ function ensureProxy(pyName, pidFile, logFile) {
 
   p.on('exit', (code) => {
     console.log(`[robotics-ui] ${proxyName} exited with code ${code}`);
+    // Close log stream to prevent resource leak
+    logStream.end();
   });
 
   p.unref();

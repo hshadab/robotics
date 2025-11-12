@@ -24,6 +24,9 @@ yarn-error.log*
 package-lock.json
 .npm
 
+# Environment variables
+.env
+
 # IDE
 .vscode/
 .idea/

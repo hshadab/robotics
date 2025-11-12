@@ -10,8 +10,8 @@ zkml_guard:
 
     # Proof cadence optimizations
     prove_on: rising_edge         # or: every_pass
-    unlock_hold_ms: 3000          # keep unlocked briefly after a verify
-    reprove_on_label_change: true  # Cancel and restart proof if label changes during generation
+    unlock_hold_ms: 10000         # keep unlocked for 10 seconds after verify (demo default)
+    reprove_on_label_change: false  # Don't cancel proof if label changes during generation (prevents proof cancellation)
 
     # ONNX + labels auto-download cache
     # Leave commented to auto-download MobileNetV2 from ONNX Model Zoo
