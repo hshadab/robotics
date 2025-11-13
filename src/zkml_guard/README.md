@@ -156,7 +156,7 @@ ros2 launch zkml_guard zkml_guard_proof.launch.py
 - **Proof Binding**: Cryptographic commitment links input→output→proof
 - **Tamper Detection**: Automatic verification failure on model modification
 
-See `SECURITY_FIXES.md` for security improvements made to the codebase.
+See [`../../docs/SECURITY_FIXES.md`](../../docs/SECURITY_FIXES.md) for security improvements made to the codebase.
 
 ## Troubleshooting
 

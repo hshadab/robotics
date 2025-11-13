@@ -152,6 +152,20 @@ The UI automatically:
 - Starts demo teleop publisher
 - Manages ROS proxy bridges for UI updates
 
+## 📚 Documentation
+
+Comprehensive documentation is available in the [`docs/`](docs/) directory:
+
+- **[Quick Start Guide](docs/QUICKSTART.md)** - Fast setup instructions
+- **[Architecture](docs/ARCHITECTURE.md)** - System design and components
+- **[Camera Setup](docs/CAMERA_SCRIPTS.md)** - Multi-platform camera configuration
+- **[Security Fixes](docs/SECURITY_FIXES.md)** - Security improvements and best practices
+- **[Testing Guide](docs/TESTING.md)** - Testing procedures and verification
+- **[Scripts Reference](docs/SCRIPTS.md)** - Root directory scripts documentation
+- **[Development Log](docs/CLAUDE.md)** - Recent improvements and changes
+
+See [`docs/README.md`](docs/README.md) for a complete documentation index.
+
 ## What's Included
 
 ### Core Components

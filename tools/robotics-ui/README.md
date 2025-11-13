@@ -173,7 +173,9 @@ curl -X POST http://localhost:9200/start/all
 
 These are acceptable for a localhost demo but should be addressed for production deployment.
 
-## Recent Fixes (See CLAUDE.md)
+## Recent Fixes
+
+See [`../../docs/CLAUDE.md`](../../docs/CLAUDE.md) for complete development log.
 
 - Fixed verification display (Step 3 now updates correctly)
 - Fixed motion countdown (shows 10s → 0s properly)
