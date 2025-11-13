@@ -222,11 +222,11 @@ robotics/
 │   │   ├── event_proxy.py       # ROS→File bridge
 │   │   ├── frame_proxy.py       # Camera→File bridge
 │   │   └── public/index.html    # Frontend UI
-│   ├── onnx-verifier/       # HTTP verifier service
-│   └── ui/demo_ui.py        # Legacy Tkinter UI
+│   └── onnx-verifier/       # HTTP verifier service
 ├── scripts/
-│   ├── setup_ros.sh         # Install ROS + deps
-│   └── run_demo_ui.sh       # Launch with venv
+│   └── setup_ros.sh         # Install ROS + deps
+├── archive/
+│   └── legacy-tkinter-ui/   # Deprecated Tkinter UI
 └── README.md
 ```
 
@@ -839,12 +839,14 @@ This enables **trustless robotics** where decisions are cryptographically verifi
 
 ## Legacy UI (Tkinter)
 
-Alternative GUI launcher:
+The original Tkinter UI has been archived. To use it:
 ```bash
 sudo apt install python3-tk
-python3 tools/ui/demo_ui.py
-# Or: scripts/run_demo_ui.sh
+python3 archive/legacy-tkinter-ui/demo_ui.py
+# Or: archive/legacy-tkinter-ui/run_demo_ui.sh
 ```
+
+**Note**: The web UI (`tools/robotics-ui/`) is recommended for all new use.
 
 ## License & Credits
 

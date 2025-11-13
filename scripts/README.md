@@ -25,11 +25,11 @@ source scripts/setup_ros.sh
 - After building workspace with `colcon build`
 
 ### run_demo_ui.sh
-**Purpose**: Legacy UI launcher (DEPRECATED)
+**Purpose**: Legacy UI launcher (ARCHIVED)
 
-Launches the old Tkinter-based demo UI.
+**Status**: Moved to `archive/legacy-tkinter-ui/run_demo_ui.sh`
 
-**Status**: Deprecated - replaced by web UI
+The old Tkinter-based UI has been archived.
 
 **Migration**: Use `start_demo.sh` in root directory instead:
 ```bash
@@ -37,7 +37,7 @@ cd ~/robotics
 ./start_demo.sh
 ```
 
-The new web UI provides better functionality and runs at http://localhost:9200.
+The new web UI (`tools/robotics-ui/`) provides better functionality and runs at http://localhost:9200.
 
 ## Root Directory Scripts
 
