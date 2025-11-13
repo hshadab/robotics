@@ -25,7 +25,7 @@ For demonstration purposes, this system uses a **sentinel model** approach:
 
 **Inference model**: MobileNetV2 runs the actual object detection for motion gating. The proof validates the sentinel model executed correctly and binds to the inference metadata via SHA-256 hashes.
 
-**Why this design**: Full MobileNetV2 proof generation would take 30-120 minutes and require 10-50GB RAM - impractical for real-time robotics demos. The sentinel approach lets you experience real zkML proofs with demo-friendly latency.
+**Why this design**: Proving large production models requires substantial computational resources with current zkML technology. The sentinel approach enables real-time demonstration while showcasing genuine cryptographic proof workflows.
 
 ### Production Pathways
 
